@@ -1,0 +1,39 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# macOS
+.DS_Store
+
+# Runtime/cache
+.bitget_universe_cache.json
+.eventpulse_pipeline.json
+
+# Local databases/state
+*.db
+*.sqlite
+*.sqlite3
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Local backups
+*.before_*
+*.backup
+*.bak
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary
+*.tmp
+*.swp

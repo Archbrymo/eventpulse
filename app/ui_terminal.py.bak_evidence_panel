@@ -1,0 +1,1584 @@
+from __future__ import annotations
+import json
+from pathlib import Path
+# app/ui_terminal.py
+
+
+from html import escape
+from typing import Any, Dict, Iterable, List, Optional
+
+import pandas as pd
+import streamlit as st
+
+
+# ============================================================
+# GLOBAL TERMINAL CSS
+# ============================================================
+
+def terminal_css() -> None:
+    st.markdown(
+        """
+        <style>
+
+        /* =====================================================
+           EVENTPULSE TERMINAL
+           ===================================================== */
+
+        :root {
+            --ep-bg: #070B14;
+            --ep-panel: #0A111D;
+            --ep-panel-2: #0C1422;
+            --ep-border: #1E2A3A;
+            --ep-border-soft: #162235;
+
+            --ep-text: #E5E7EB;
+            --ep-muted: #7B8798;
+            --ep-dim: #556274;
+
+            --ep-blue: #38BDF8;
+            --ep-blue-soft: #7DD3FC;
+
+            --ep-green: #0ECB81;
+            --ep-red: #F6465D;
+
+            --ep-silver: #D7DCE2;
+            --ep-black: #05080F;
+        }
+
+        html,
+        body,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stApp"] {
+            background: var(--ep-bg) !important;
+            color: var(--ep-text) !important;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            background:
+                linear-gradient(
+                    rgba(56, 189, 248, 0.018) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(56, 189, 248, 0.018) 1px,
+                    transparent 1px
+                ),
+                var(--ep-bg) !important;
+
+            background-size: 32px 32px !important;
+        }
+
+        .main .block-container {
+            max-width: 1500px !important;
+            padding-top: 0.75rem !important;
+            padding-bottom: 2rem !important;
+        }
+
+        [data-testid="stHeader"] {
+            background: transparent !important;
+        }
+
+        /* =====================================================
+           SIDEBAR
+           ===================================================== */
+
+        [data-testid="stSidebar"] {
+            background: #060A12 !important;
+            border-right: 1px solid var(--ep-border) !important;
+        }
+
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1rem !important;
+        }
+
+        [data-testid="stSidebar"] .stRadio label {
+            color: var(--ep-muted) !important;
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace !important;
+            font-size: 11px !important;
+            letter-spacing: 0.05em !important;
+            text-transform: uppercase !important;
+        }
+
+        [data-testid="stSidebar"] .stRadio div[role="radiogroup"] {
+            gap: 2px !important;
+        }
+
+        [data-testid="stSidebar"] .stRadio label:hover {
+            color: var(--ep-blue-soft) !important;
+        }
+
+        /* =====================================================
+           GENERAL STREAMLIT ELEMENTS
+           ===================================================== */
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: var(--ep-text) !important;
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace !important;
+            font-weight: 600 !important;
+        }
+
+        h1 {
+            font-size: 22px !important;
+            letter-spacing: 0.02em !important;
+        }
+
+        h2 {
+            font-size: 17px !important;
+        }
+
+        h3 {
+            font-size: 13px !important;
+        }
+
+        p,
+        div,
+        span {
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace;
+        }
+
+        .stCaption {
+            color: var(--ep-muted) !important;
+        }
+
+        /* =====================================================
+           TERMINAL HEADER
+           ===================================================== */
+
+        .ep-terminal-header {
+            width: 100%;
+            padding: 16px 0 14px 0;
+            border-bottom: 1px solid var(--ep-border);
+            margin-bottom: 14px;
+        }
+
+        /*
+         * The text is silver and the ECG is the V.
+         * There is deliberately NO V glyph.
+         */
+
+        @keyframes epPulseDraw {
+
+            0% {
+                stroke-dashoffset: 0.17;
+                opacity: 0.30;
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            50% {
+                stroke-dashoffset: -0.50;
+                opacity: 1;
+            }
+
+            72% {
+                stroke-dashoffset: -0.95;
+                opacity: 0.95;
+            }
+
+            100% {
+                stroke-dashoffset: -1.0;
+                opacity: 0.30;
+            }
+        }
+
+        .ep-terminal-subtitle {
+            margin-top: 2px;
+
+            color: var(--ep-blue-soft);
+
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace;
+
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .ep-terminal-session {
+            margin-top: 7px;
+
+            color: var(--ep-dim);
+
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace;
+
+            font-size: 9px;
+            letter-spacing: 0.055em;
+            text-transform: uppercase;
+        }
+
+        /* =====================================================
+           TICKER TAPE
+           ===================================================== */
+
+        .ep-ticker-shell {
+            width: 100%;
+            overflow: hidden;
+
+            border-top: 1px solid var(--ep-border);
+            border-bottom: 1px solid var(--ep-border);
+
+            background: #060A12;
+
+            margin-bottom: 14px;
+        }
+
+        @keyframes epTickerScroll {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* =====================================================
+           KPI CARDS
+           ===================================================== */
+
+        .ep-kpi {
+            background: var(--ep-panel);
+            border: 1px solid var(--ep-border);
+
+            min-height: 82px;
+            padding: 13px 15px;
+
+            margin-bottom: 8px;
+        }
+
+        .ep-kpi-label {
+            color: var(--ep-muted);
+
+            font-size: 9px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+
+            margin-bottom: 9px;
+        }
+
+        .ep-kpi-value {
+            color: var(--ep-text);
+
+            font-size: 21px;
+            line-height: 1;
+
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .ep-kpi-value.blue {
+            color: var(--ep-blue-soft);
+        }
+
+        .ep-kpi-value.green {
+            color: var(--ep-green);
+        }
+
+        .ep-kpi-value.red {
+            color: var(--ep-red);
+        }
+
+        .ep-kpi-sub {
+            color: var(--ep-dim);
+
+            font-size: 9px;
+
+            margin-top: 8px;
+        }
+
+        /* =====================================================
+           PANELS
+           ===================================================== */
+
+        .ep-panel {
+            background: var(--ep-panel);
+
+            border: 1px solid var(--ep-border);
+
+            margin-bottom: 12px;
+        }
+
+        .ep-panel-body {
+            padding: 12px;
+        }
+
+        /* =====================================================
+           INTELLIGENCE
+           ===================================================== */
+
+        .ep-intel-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(
+                    auto-fit,
+                    minmax(180px, 1fr)
+                );
+
+            gap: 7px;
+        }
+
+        .ep-intel-card {
+            background: var(--ep-panel-2);
+
+            border: 1px solid var(--ep-border);
+
+            padding: 10px;
+        }
+
+        .ep-intel-symbol {
+            color: var(--ep-blue-soft);
+
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .ep-intel-price {
+            color: var(--ep-text);
+
+            font-size: 15px;
+            margin-top: 5px;
+        }
+
+        .ep-intel-change {
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .ep-intel-meta {
+            color: var(--ep-dim);
+
+            font-size: 8px;
+            margin-top: 8px;
+        }
+
+        /* =====================================================
+           PIPELINE
+           ===================================================== */
+
+        .ep-pipeline {
+            display: grid;
+
+            grid-template-columns:
+                repeat(
+                    auto-fit,
+                    minmax(130px, 1fr)
+                );
+
+            border: 1px solid var(--ep-border);
+        }
+
+        .ep-pipeline-cell {
+            min-height: 67px;
+
+            padding: 10px;
+
+            background: var(--ep-panel);
+
+            border-right: 1px solid var(--ep-border);
+        }
+
+        .ep-pipeline-cell:last-child {
+            border-right: none;
+        }
+
+        .ep-pipeline-label {
+            color: var(--ep-muted);
+
+            font-size: 8px;
+
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .ep-pipeline-value {
+            color: var(--ep-text);
+
+            font-size: 18px;
+            font-weight: 600;
+
+            margin-top: 7px;
+        }
+
+        .ep-pipeline-value.blue {
+            color: var(--ep-blue-soft);
+        }
+
+        .ep-pipeline-value.green {
+            color: var(--ep-green);
+        }
+
+        /* =====================================================
+           EVENT BLOTTER
+           ===================================================== */
+
+        .ep-event-row {
+            display: grid;
+
+            grid-template-columns:
+                92px
+                88px
+                minmax(180px, 1fr)
+                88px
+                88px;
+
+            gap: 8px;
+
+            align-items: center;
+
+            min-height: 40px;
+
+            padding: 0 10px;
+
+            border-bottom: 1px solid var(--ep-border-soft);
+        }
+
+        .ep-event-row:hover {
+            background: rgba(56, 189, 248, 0.025);
+        }
+
+        .ep-event-head {
+            color: var(--ep-dim);
+
+            font-size: 8px;
+            font-weight: 600;
+
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .ep-event-cell {
+            color: var(--ep-text);
+
+            font-size: 9px;
+        }
+
+        .ep-event-time {
+            color: var(--ep-dim);
+        }
+
+        .ep-event-ticker {
+            color: var(--ep-blue-soft);
+        }
+
+        .ep-event-buy {
+            color: var(--ep-green);
+        }
+
+        .ep-event-sell {
+            color: var(--ep-red);
+        }
+
+        .ep-event-wait {
+            color: var(--ep-muted);
+        }
+
+        /* =====================================================
+           RECEIPT / EXECUTION
+           ===================================================== */
+
+        .ep-receipt {
+            border: 1px solid var(--ep-border);
+
+            background: #060A12;
+
+            padding: 12px;
+
+            font-size: 9px;
+        }
+
+        .ep-receipt-line {
+            display: flex;
+            justify-content: space-between;
+
+            padding: 5px 0;
+
+            border-bottom: 1px dotted var(--ep-border-soft);
+        }
+
+        .ep-receipt-line:last-child {
+            border-bottom: none;
+        }
+
+        .ep-receipt-key {
+            color: var(--ep-muted);
+        }
+
+        .ep-receipt-value {
+            color: var(--ep-text);
+        }
+
+        /* =====================================================
+           STATUS
+           ===================================================== */
+
+        .ep-status {
+            display: inline-block;
+
+            padding: 3px 7px;
+
+            border: 1px solid var(--ep-border);
+
+            font-size: 8px;
+
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .ep-status-live {
+            color: var(--ep-green);
+            border-color: rgba(14, 203, 129, 0.35);
+        }
+
+        .ep-status-wait {
+            color: var(--ep-muted);
+        }
+
+        .ep-status-risk {
+            color: var(--ep-red);
+            border-color: rgba(246, 70, 93, 0.35);
+        }
+
+        /* =====================================================
+           FOOTER
+           ===================================================== */
+
+        .ep-footer {
+            padding-top: 15px;
+            margin-top: 18px;
+
+            border-top: 1px solid var(--ep-border);
+
+            color: var(--ep-dim);
+
+            font-size: 8px;
+
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        /* =====================================================
+           STREAMLIT BUTTONS
+           ===================================================== */
+
+        .stButton > button {
+            background: #0A111D !important;
+
+            color: var(--ep-blue-soft) !important;
+
+            border: 1px solid var(--ep-border) !important;
+
+            border-radius: 0 !important;
+
+            font-family:
+                "IBM Plex Mono",
+                "SFMono-Regular",
+                Consolas,
+                monospace !important;
+
+            font-size: 10px !important;
+            letter-spacing: 0.04em !important;
+
+            box-shadow: none !important;
+        }
+
+        .stButton > button:hover {
+            border-color: var(--ep-blue) !important;
+            color: #FFFFFF !important;
+        }
+
+        /* =====================================================
+           DATAFRAMES
+           ===================================================== */
+
+        [data-testid="stDataFrame"] {
+            border: 1px solid var(--ep-border) !important;
+        }
+
+        /* =====================================================
+           MOBILE
+           ===================================================== */
+
+        @media (max-width: 800px) {
+
+            .ep-event-row {
+                grid-template-columns:
+                    70px
+                    65px
+                    minmax(130px, 1fr);
+            }
+
+            .ep-event-row > :nth-child(4),
+            .ep-event-row > :nth-child(5) {
+                display: none;
+            }
+
+        }
+
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# HEADER / WORDMARK
+# ============================================================
+
+def terminal_header(last_tick=None):
+    last_tick = last_tick or "—"
+
+    st.markdown(
+        """
+        <style>
+        .ep-native-header
+        .ep-native-panel-title {
+            font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #D9DEE5;
+            text-transform: uppercase;
+            padding: 2px 0 4px 0;
+        }
+
+        .ep-native-panel-meta {
+            font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+            font-size: 9px;
+            letter-spacing: 0.06em;
+            color: #7F8A99;
+            padding: 0 0 8px 0;
+        }
+ {
+            padding: 4px 0 10px 0;
+        }
+
+        .ep-native-wordmark {
+            font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            color: #D9DEE5;
+            line-height: 1.05;
+        }
+
+        .ep-native-subtitle {
+            margin-top: 7px;
+            font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            color: #7DD3FC;
+            text-transform: uppercase;
+        }
+
+        .ep-native-session {
+            margin-top: 8px;
+            font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+            font-size: 10px;
+            letter-spacing: 0.04em;
+            color: #7F8A99;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="ep-native-header">
+            <div class="ep-native-wordmark">EVENTPULSE</div>
+            <div class="ep-native-subtitle">
+                EVENT-DRIVEN AUTONOMOUS TRADING TERMINAL
+            </div>
+            <div class="ep-native-session">
+                US CASH CLOSED
+                ·
+                rTOKEN 24H LIVE
+                ·
+                PAPER
+                ·
+                LAST TICK {last_tick}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_html(markup):
+    """
+    Render UI HTML through Streamlit's native HTML renderer.
+    This avoids Markdown exposing HTML source as literal text.
+    """
+    st.html(markup)
+
+
+def _display_symbol(symbol):
+    """
+    Convert Bitget execution symbols to clean UI display symbols.
+
+    Examples:
+        RPNVDAUSDT -> rNVDA
+        RPAAPLUSDT -> rAAPL
+        NVDA -> NVDA
+    """
+    value = str(symbol or "").strip().upper()
+
+    if value.endswith("USDT"):
+        value = value[:-4]
+
+    if value.startswith("RP") and len(value) > 2:
+        return "r" + value[2:]
+
+    if value.startswith("R") and len(value) > 1:
+        return "r" + value[1:]
+
+    return value
+
+
+def ticker_tape(tickers):
+    """CEX-style continuously scrolling ticker."""
+    if not tickers:
+        return
+
+    import html
+    import streamlit.components.v1 as components
+
+    items = []
+
+    for t in tickers:
+        symbol = (
+            t.get("symbol")
+            or t.get("ticker")
+            or t.get("underlying")
+            or "—"
+        )
+
+        price = t.get("price", t.get("last", 0))
+        change = t.get(
+            "change_pct",
+            t.get("change_24h_pct", t.get("change", 0)),
+        )
+
+        try:
+            price_text = f"{float(price):,.2f}"
+        except (TypeError, ValueError):
+            price_text = "—"
+
+        try:
+            cv = float(change)
+            change_text = f"{cv:+.2f}%"
+            cls = "up" if cv >= 0 else "down"
+        except (TypeError, ValueError):
+            change_text = "—"
+            cls = "flat"
+
+        items.append(
+            '<span class="ticker-item">'
+            f'<span class="symbol">{html.escape(str(symbol))}</span>'
+            f'<span class="price">{price_text}</span>'
+            f'<span class="change {cls}">{change_text}</span>'
+            '</span>'
+        )
+
+    tape = "".join(items)
+
+    markup = f"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body {{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:42px;
+    overflow:hidden;
+    background:#070B14;
+}}
+
+.viewport {{
+    width:100%;
+    height:42px;
+    overflow:hidden;
+    border-top:1px solid #1E2A3A;
+    border-bottom:1px solid #1E2A3A;
+    font-family:SFMono-Regular,Consolas,monospace;
+}}
+
+.track {{
+    display:flex;
+    width:max-content;
+    height:42px;
+    animation:scroll 24s linear infinite;
+}}
+
+.group {{
+    display:flex;
+    flex-shrink:0;
+    width:max-content;
+    height:42px;
+}}
+
+.ticker-item {{
+    display:inline-flex;
+    align-items:center;
+    gap:9px;
+    height:42px;
+    padding:0 20px;
+    border-right:1px solid #172235;
+    white-space:nowrap;
+    font-size:10px;
+}}
+
+.symbol {{
+    color:#E5E7EB;
+    font-weight:700;
+}}
+
+.price {{
+    color:#CBD5E1;
+}}
+
+.up {{
+    color:#0ECB81;
+}}
+
+.down {{
+    color:#F6465D;
+}}
+
+.flat {{
+    color:#94A3B8;
+}}
+
+@keyframes scroll {{
+    0% {{
+        transform:translate3d(0,0,0);
+    }}
+    100% {{
+        transform:translate3d(-50%,0,0);
+    }}
+}}
+</style>
+</head>
+
+<body>
+<div class="viewport">
+    <div class="track">
+        <div class="group">{tape}</div>
+        <div class="group">{tape}</div>
+    </div>
+</div>
+</body>
+</html>
+"""
+
+    components.html(markup, height=44, scrolling=False)
+
+def _money(value):
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "$0.00"
+
+def _pct(value):
+    try:
+        return f"{float(value):+.2f}%"
+    except (TypeError, ValueError):
+        return "0.00%"
+
+
+def terminal_kpis(
+    equity,
+    pnl_24h=None,
+    pnl_pct=None,
+    cash=0,
+    open_positions=0,
+    book="book loaded",
+    equity_24h_ago=None,
+):
+    """Render terminal KPI cards with native Streamlit components."""
+
+    cols = st.columns(4)
+
+    with cols[0]:
+        st.caption("EQUITY")
+        st.markdown(f"### {_money(equity)}")
+        st.caption("portfolio NAV")
+
+    with cols[1]:
+        st.caption("24H PNL")
+
+        pnl_value = float(pnl_24h or 0)
+        pnl_percent = float(pnl_pct or 0)
+
+        if pnl_value >= 0:
+            st.markdown(
+                f"<span style='color:#0ECB81;font-family:monospace;"
+                f"font-size:1.5rem;font-weight:700;'>"
+                f"+{pnl_value:,.2f}</span>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<span style='color:#F6465D;font-family:monospace;"
+                f"font-size:1.5rem;font-weight:700;'>"
+                f"{pnl_value:,.2f}</span>",
+                unsafe_allow_html=True,
+            )
+
+        st.caption(f"{_pct(pnl_percent)}")
+
+    with cols[2]:
+        st.caption("CASH")
+        st.markdown(f"### {_money(cash)}")
+        st.caption("available capital")
+
+    with cols[3]:
+        st.caption("OPEN POSITIONS")
+        st.markdown(f"### {int(open_positions)}")
+        st.caption(str(book or "book loaded"))
+
+
+# ============================================================
+# MARKET INTELLIGENCE
+# ============================================================
+
+def render_market_intelligence(
+    finalists: Optional[List[Dict[str, Any]]] = None,
+    limit: int = 8,
+) -> None:
+    """Render researched market candidates using native Streamlit components."""
+
+    rows = list(finalists or [])[:limit]
+
+    if not rows:
+        return
+
+    st.markdown("### Market intelligence")
+    st.caption("Evidence-ranked Reality assets")
+
+    columns = st.columns(4)
+
+    for index, candidate in enumerate(rows):
+        ticker = str(
+            candidate.get(
+                "ticker",
+                candidate.get(
+                    "underlying",
+                    "",
+                ),
+            )
+        )
+
+        data = candidate.get(
+            "ticker_data",
+            {},
+        ) or {}
+
+        try:
+            price = float(
+                candidate.get(
+                    "last_price",
+                    data.get("last", 0),
+                ) or 0
+            )
+        except (TypeError, ValueError):
+            price = 0.0
+
+        try:
+            change = float(
+                candidate.get(
+                    "change_24h_pct",
+                    data.get("change_pct", 0),
+                ) or 0
+            )
+        except (TypeError, ValueError):
+            change = 0.0
+
+        try:
+            turnover = float(
+                candidate.get(
+                    "turnover_24h",
+                    data.get("quote_volume", 0),
+                ) or 0
+            )
+        except (TypeError, ValueError):
+            turnover = 0.0
+
+        try:
+            evidence = float(
+                candidate.get(
+                    "evidence_score",
+                    0,
+                ) or 0
+            )
+        except (TypeError, ValueError):
+            evidence = 0.0
+
+        with columns[index % 4]:
+            st.markdown(f"**{ticker}**")
+            st.markdown(f"### ${price:,.2f}")
+
+            if change >= 0:
+                st.markdown(
+                    f"<span style='color:#0ECB81;font-family:monospace;'>"
+                    f"+{change:.2f}%</span>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<span style='color:#F6465D;font-family:monospace;'>"
+                    f"{change:.2f}%</span>",
+                    unsafe_allow_html=True,
+                )
+
+            st.caption(
+                f"EVIDENCE {evidence:.0f} · "
+                f"TURNOVER ${turnover:,.0f}"
+            )
+
+
+# ============================================================
+# PIPELINE
+# ============================================================
+
+def render_pipeline(
+    reality_universe: int = 0,
+    fast_screen: int = 0,
+    evidence_research: int = 0,
+    qwen_council: int = 0,
+    risk_reviewed: int = 0,
+    paper_fills: int = 0,
+) -> None:
+    """Render autonomous pipeline telemetry natively."""
+
+    st.caption("PIPELINE")
+
+    cols = st.columns(6)
+
+    metrics = [
+        ("REALITY UNIVERSE", reality_universe, ""),
+        ("FAST SCREEN", fast_screen, ""),
+        ("EVIDENCE RESEARCH", evidence_research, ""),
+        ("QWEN COUNCIL", qwen_council, "blue"),
+        ("RISK REVIEWED", risk_reviewed, ""),
+        ("PAPER FILLS", paper_fills, "green"),
+    ]
+
+    for col, (label, value, tone) in zip(cols, metrics):
+        with col:
+            st.caption(label)
+
+            if tone == "green":
+                st.markdown(
+                    f"<span style='color:#0ECB81;font-family:monospace;"
+                    f"font-size:1.35rem;font-weight:700;'>"
+                    f"{int(value)}</span>",
+                    unsafe_allow_html=True,
+                )
+            elif tone == "blue":
+                st.markdown(
+                    f"<span style='color:#38BDF8;font-family:monospace;"
+                    f"font-size:1.35rem;font-weight:700;'>"
+                    f"{int(value)}</span>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(f"### {int(value)}")
+
+
+# ============================================================
+# EVENT HELPERS
+# ============================================================
+
+def load_pipeline_snapshot():
+    """Load latest autonomous pipeline telemetry."""
+    path = Path(".eventpulse_pipeline.json")
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def render_autonomous_status():
+    """Native terminal pipeline telemetry."""
+    pipeline = load_pipeline_snapshot()
+
+    reality = pipeline.get("reality_universe", "—")
+    fast = pipeline.get("fast_screen", "—")
+    evidence = pipeline.get("evidence_research", "—")
+    qwen = pipeline.get("qwen_council", "—")
+    signals = pipeline.get("qwen_signals", "—")
+
+    risk = pipeline.get("risk") or {}
+    execution = pipeline.get("paper_execution") or {}
+
+    reviewed = risk.get("reviewed", "—")
+    approved = risk.get("approved", "—")
+    blocked = risk.get("blocked", "—")
+    attempted = execution.get("attempted", "—")
+    filled = execution.get("filled", "—")
+
+    st.markdown("### AUTONOMOUS PIPELINE")
+
+    cols = st.columns(7)
+
+    metrics = [
+        ("REALITY", reality),
+        ("FAST", fast),
+        ("EVIDENCE", evidence),
+        ("QWEN", qwen),
+        ("RISK", reviewed),
+        ("APPROVED", approved),
+        ("FILLED", filled),
+    ]
+
+    for col, (label, value) in zip(cols, metrics):
+        with col:
+            st.metric(label, value)
+
+    st.caption(
+        f"1173 Reality instruments → {fast} fast candidates → "
+        f"{evidence} evidence finalists → {qwen} Qwen council seats → "
+        f"{signals} signals → {reviewed} risk reviewed → "
+        f"{approved} approved → {attempted} paper orders → {filled} filled"
+    )
+
+
+def event_status(row: Any) -> str:
+
+    for key in (
+        "status",
+        "direction",
+        "signal",
+        "action",
+    ):
+
+        try:
+            value = row.get(key)
+        except Exception:
+            value = None
+
+        if value:
+            return str(value)
+
+    return "WAIT"
+
+
+def event_time(value: Any) -> str:
+
+    if value is None:
+        return "—"
+
+    try:
+        timestamp = pd.to_datetime(
+            value,
+            errors="coerce",
+        )
+
+        if pd.isna(timestamp):
+            return str(value)
+
+        return timestamp.strftime(
+            "%H:%M:%S"
+        )
+
+    except Exception:
+        return str(value)
+
+
+def event_value(
+    row: Any,
+    *keys: str,
+    default: str = "—",
+) -> str:
+
+    for key in keys:
+
+        try:
+            value = row.get(key)
+        except Exception:
+            value = None
+
+        if value is not None and str(value).strip():
+            return str(value)
+
+    return default
+
+
+# ============================================================
+# EVENT BLOTTER
+# ============================================================
+
+def event_blotter(
+    df: Optional[pd.DataFrame],
+    max_rows: int = 50,
+    limit: Optional[int] = None,
+) -> None:
+    """Render the event blotter using native Streamlit components."""
+
+    if df is None or df.empty:
+        st.caption("No events available.")
+        return
+
+    row_limit = limit if limit is not None else max_rows
+    rows = df.head(row_limit)
+
+    st.caption("EVENT BLOTTTER")
+
+    header = st.columns([1.1, 1.0, 3.2, 1.0, 0.8])
+
+    labels = [
+        "TIME",
+        "TICKER",
+        "EVENT",
+        "SIGNAL",
+        "CONF",
+    ]
+
+    for col, label in zip(header, labels):
+        with col:
+            st.caption(label)
+
+    for _, row in rows.iterrows():
+
+        timestamp = event_time(
+            event_value(
+                row,
+                "timestamp",
+                "created_at",
+                "time",
+            )
+        )
+
+        ticker = event_value(
+            row,
+            "ticker",
+            "symbol",
+            "underlying",
+        )
+
+        headline = event_value(
+            row,
+            "headline",
+            "event",
+            "reasoning",
+            "thesis",
+        )
+
+        status = event_status(row)
+
+        confidence = event_value(
+            row,
+            "confidence",
+        )
+
+        status_upper = str(status).upper()
+
+        cols = st.columns([1.1, 1.0, 3.2, 1.0, 0.8])
+
+        with cols[0]:
+            st.caption(str(timestamp))
+
+        with cols[1]:
+            st.markdown(f"**{ticker or '—'}**")
+
+        with cols[2]:
+            st.caption(str(headline or "—"))
+
+        with cols[3]:
+            if "BUY" in status_upper:
+                st.markdown(
+                    "<span style='color:#0ECB81;font-family:monospace;"
+                    "font-weight:700;'>BUY</span>",
+                    unsafe_allow_html=True,
+                )
+            elif "SELL" in status_upper:
+                st.markdown(
+                    "<span style='color:#F6465D;font-family:monospace;"
+                    "font-weight:700;'>SELL</span>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<span style='color:#9CA3AF;font-family:monospace;"
+                    "font-weight:700;'>WAIT</span>",
+                    unsafe_allow_html=True,
+                )
+
+        with cols[4]:
+            st.caption(str(confidence or "—"))
+
+
+# ============================================================
+# EVENT FILTERS
+# ============================================================
+
+def event_filters(
+    df: Optional[pd.DataFrame],
+) -> Optional[pd.DataFrame]:
+
+    if df is None or df.empty:
+        return df
+
+    left, middle, right = st.columns(
+        [1, 1, 2]
+    )
+
+    with left:
+
+        ticker_options = ["ALL"]
+
+        if "ticker" in df.columns:
+
+            ticker_options.extend(
+                sorted(
+                    {
+                        str(x)
+                        for x in df["ticker"].dropna()
+                    }
+                )
+            )
+
+        ticker_filter = st.selectbox(
+            "TICKER",
+            ticker_options,
+            key="event_ticker_filter",
+        )
+
+    with middle:
+
+        status_options = ["ALL"]
+
+        for column in (
+            "status",
+            "direction",
+            "signal",
+            "action",
+        ):
+
+            if column in df.columns:
+
+                status_options.extend(
+                    sorted(
+                        {
+                            str(x).upper()
+                            for x
+                            in df[column]
+                            .dropna()
+                        }
+                    )
+                )
+
+                break
+
+        status_options = list(
+            dict.fromkeys(status_options)
+        )
+
+        status_filter = st.selectbox(
+            "STATUS",
+            status_options,
+            key="event_status_filter",
+        )
+
+    with right:
+
+        search = st.text_input(
+            "SEARCH",
+            value="",
+            key="event_search_filter",
+        )
+
+    filtered = df.copy()
+
+    if ticker_filter != "ALL":
+        filtered = filtered[
+            filtered["ticker"].astype(str)
+            == ticker_filter
+        ]
+
+    if status_filter != "ALL":
+
+        status_column = None
+
+        for column in (
+            "status",
+            "direction",
+            "signal",
+            "action",
+        ):
+
+            if column in filtered.columns:
+                status_column = column
+                break
+
+        if status_column:
+            filtered = filtered[
+                filtered[status_column]
+                .astype(str)
+                .str.upper()
+                .eq(status_filter)
+            ]
+
+    if search.strip():
+
+        query = search.strip().lower()
+
+        mask = pd.Series(
+            False,
+            index=filtered.index,
+        )
+
+        for column in filtered.columns:
+
+            try:
+                mask |= (
+                    filtered[column]
+                    .astype(str)
+                    .str.lower()
+                    .str.contains(
+                        query,
+                        regex=False,
+                        na=False,
+                    )
+                )
+            except Exception:
+                pass
+
+        filtered = filtered[mask]
+
+    return filtered
+
+
+# ============================================================
+# EVENTS PAGE
+# ============================================================
+
+def render_events_page(
+    events_df: Optional[pd.DataFrame],
+    equity: float,
+    cash: float,
+    positions: Any,
+    equity_24h_ago: Optional[float],
+    ticker_data: Optional[List[Dict[str, Any]]] = None,
+    finalists: Optional[List[Dict[str, Any]]] = None,
+    pipeline: Optional[Dict[str, Any]] = None,
+) -> None:
+
+    st.markdown(
+        """
+        <div class="ep-panel">
+
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    terminal_kpis(
+        equity=equity,
+        cash=cash,
+        open_positions=len(
+            positions or []
+        ),
+        equity_24h_ago=equity_24h_ago,
+    )
+
+    if ticker_data:
+        render_autonomous_status()
+    ticker_tape(ticker_data)
+
+    if finalists:
+        render_market_intelligence(
+            finalists=finalists,
+            limit=8,
+        )
+
+    if pipeline:
+        render_pipeline(
+            reality_universe=pipeline.get(
+                "reality_universe",
+                0,
+            ),
+            fast_screen=pipeline.get(
+                "fast_screen",
+                0,
+            ),
+            evidence_research=pipeline.get(
+                "evidence_research",
+                0,
+            ),
+            qwen_council=pipeline.get(
+                "qwen_council",
+                0,
+            ),
+            risk_reviewed=(
+                pipeline.get(
+                    "risk",
+                    {},
+                ) or {}
+            ).get(
+                "reviewed",
+                0,
+            ),
+            paper_fills=(
+                pipeline.get(
+                    "paper_execution",
+                    {},
+                ) or {}
+            ).get(
+                "filled",
+                0,
+            ),
+        )
+
+    filtered_events = event_filters(
+        events_df
+    )
+
+    event_blotter(
+        filtered_events,
+        max_rows=12,
+    )
+
+    st.markdown(
+        """
+        <div class="ep-footer">
+            EVENTPULSE · EVENT-DRIVEN AUTONOMOUS TRADING TERMINAL
+            · PAPER EXECUTION · QWEN COUNCIL · DETERMINISTIC RISK
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
