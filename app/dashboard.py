@@ -671,8 +671,8 @@ elif section == "Portfolio":
 elif section == "Events":
 
     render_premium_terminal(
-        pipeline=pipeline_for_ui,
-        ticker_data=ticker_data,
+        pipeline_snapshot=pipeline_for_ui,
+        finalists=ticker_data,
         events=(
             events_df.to_dict("records")
             if not events_df.empty
@@ -683,7 +683,7 @@ elif section == "Events":
         cash=safe_float(cash),
         positions=open_position_count,
         pnl_24h=pnl_24h,
-        active="Events",
+        current_page="Events",
     )
 
 
