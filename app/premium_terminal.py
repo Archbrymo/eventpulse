@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
+import yfinance as yf
 
 
 # ---------------------------------------------------------------------------
@@ -971,6 +972,26 @@ def _event_blotter(events=None):
         st.divider()
 
 
+
+
+def _real_price_history(ticker, periods=30):
+    """Fetch real daily closing prices for the underlying ticker."""
+    if not ticker:
+        return []
+
+    symbol = str(ticker).strip().upper()
+    if symbol.startswith("R") and symbol.endswith("USDT"):
+        symbol = symbol[1:-4]
+
+    try:
+        data = yf.Ticker(symbol).history(period="2mo", interval="1d", auto_adjust=False)
+        if data.empty or "Close" not in data:
+            return []
+
+        closes = data["Close"].dropna().tail(periods).tolist()
+        return [float(x) for x in closes if float(x) > 0]
+    except Exception:
+        return []
 
 
 def _sparkline(values=None, height=120):
