@@ -974,25 +974,25 @@ def _event_blotter(events=None):
 
 
 def _sparkline(values=None, height=120):
-    """Render a compact native Streamlit sparkline.
+    """Render real market-history values only; never synthesize a sparkline."""
+    if not values:
+        st.caption("No price history available.")
+        return
 
-    Accepts the legacy (values, height) call signature used by
-    _live_evidence while avoiding raw SVG/HTML rendering.
-    """
-    if values is None:
-        values = [18, 21, 19, 24, 23, 28, 26, 31, 29, 34]
+    clean = []
+    for value in values:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            clean.append(number)
 
-    try:
-        values = [float(v) for v in values]
-    except (TypeError, ValueError):
-        values = [18, 21, 19, 24, 23, 28, 26, 31, 29, 34]
+    if len(clean) < 2:
+        st.caption("Insufficient price history.")
+        return
 
-    st.line_chart(
-        values,
-        height=int(height or 120),
-        use_container_width=True,
-    )
-
+    st.line_chart(clean, height=height, use_container_width=True)
 
 def _live_evidence(
     selected_asset: Optional[str],
