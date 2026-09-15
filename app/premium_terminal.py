@@ -473,7 +473,7 @@ def _sidebar(current_page: str) -> str:
         if st.sidebar.button(
             page,
             key=f"ep_nav_{page.lower().replace(' ', '_')}",
-            use_container_width=True,
+            width='stretch',
             type="primary" if active else "secondary",
         ):
             st.session_state["ep_page"] = page
@@ -500,7 +500,7 @@ def _sidebar(current_page: str) -> str:
 
     if st.sidebar.button(
         "KILL ARMED",
-        use_container_width=True,
+        width='stretch',
         type="secondary",
         key="ep_kill_switch",
     ):
@@ -1013,7 +1013,7 @@ def _sparkline(values=None, height=120):
         st.caption("Insufficient price history.")
         return
 
-    st.line_chart(clean, height=height, use_container_width=True)
+    st.line_chart(clean, height=height, width='stretch')
 
 def _live_evidence(
     selected_asset: Optional[str],
@@ -1144,7 +1144,7 @@ def _live_evidence(
 
     if st.button(
         "OPEN THESIS",
-        use_container_width=True,
+        width='stretch',
         type="secondary",
         key="ep_open_thesis",
     ):
