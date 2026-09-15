@@ -464,19 +464,19 @@ def _sidebar(current_page: str) -> str:
         unsafe_allow_html=True,
     )
 
-    selected_index = (
-        pages.index(current_page)
-        if current_page in pages
-        else 0
-    )
+    selected_page = current_page if current_page in pages else "Overview"
 
-    selected_page = st.sidebar.radio(
-        "Navigation",
-        pages,
-        index=selected_index,
-        label_visibility="collapsed",
-        key="ep_navigation",
-    )
+    for page in pages:
+        active = page == selected_page
+
+        if st.sidebar.button(
+            page,
+            key=f"ep_nav_{page.lower().replace(' ', '_')}",
+            use_container_width=True,
+            type="primary" if active else "secondary",
+        ):
+            st.session_state["ep_page"] = page
+            st.rerun()
 
     st.sidebar.divider()
 
@@ -501,6 +501,7 @@ def _sidebar(current_page: str) -> str:
         "KILL ARMED",
         use_container_width=True,
         type="secondary",
+        key="ep_kill_switch",
     ):
         st.session_state["kill_armed"] = True
 
