@@ -908,21 +908,62 @@ def _market_intelligence(finalists=None):
         st.caption("No Reality finalists available.")
         return
 
-    for item in rows[:8]:
-        ticker = str(item.get("execution_symbol", "")).upper()
-        price = _safe_float(item.get("last_price"))
-        change = _safe_float(item.get("change_24h_pct"))
+    header = st.columns([0.35, 1.55, 1.15, 0.9, 0.85, 1.1], gap="small")
+    for col, label in zip(
+        header,
+        ["#", "ASSET", "PRICE", "24H", "EVIDENCE", "TURNOVER"],
+    ):
+        with col:
+            st.caption(label)
 
-        c1, c2, c3 = st.columns([2.2, 1.2, 1.0], gap="small")
+    st.divider()
 
-        with c1:
-            st.write(ticker)
+    for rank, item in enumerate(rows[:10], 1):
+        ticker = str(
+            item.get("execution_symbol")
+            or item.get("symbol")
+            or item.get("ticker")
+            or ""
+        ).upper()
 
-        with c2:
-            st.write(f"${price:,.2f}")
+        price = _safe_float(
+            item.get("last_price", item.get("price", item.get("last")))
+        )
+        change = _safe_float(
+            item.get("change_24h_pct", item.get("change_pct"))
+        )
+        evidence = _safe_float(item.get("evidence_score"))
+        turnover = _safe_float(
+            item.get("turnover_24h", item.get("quote_volume"))
+        )
 
-        with c3:
-            st.write(f"{change:+.2f}%")
+        cols = st.columns(
+            [0.35, 1.55, 1.15, 0.9, 0.85, 1.1],
+            gap="small",
+        )
+
+        with cols[0]:
+            st.caption(f"{rank:02d}")
+
+        with cols[1]:
+            st.markdown(f"**{ticker}**")
+
+        with cols[2]:
+            st.write(f"${price:,.2f}" if price else "—")
+
+        with cols[3]:
+            st.write(f"{change:+.2f}%" if change else "—")
+
+        with cols[4]:
+            st.write(f"{evidence:.0f}" if evidence else "—")
+
+        with cols[5]:
+            if turnover >= 1_000_000_000:
+                st.write(f"${turnover / 1_000_000_000:.2f}B")
+            elif turnover >= 1_000_000:
+                st.write(f"${turnover / 1_000_000:.1f}M")
+            else:
+                st.write("—")
 
         st.divider()
 
