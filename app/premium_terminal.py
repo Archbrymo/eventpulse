@@ -918,6 +918,8 @@ def _market_intelligence(finalists=None):
 
     st.divider()
 
+    selected = st.session_state.get("ep_selected_asset")
+
     for rank, item in enumerate(rows[:10], 1):
         ticker = str(
             item.get("execution_symbol")
@@ -946,7 +948,14 @@ def _market_intelligence(finalists=None):
             st.caption(f"{rank:02d}")
 
         with cols[1]:
-            st.markdown(f"**{ticker}**")
+            if st.button(
+                ticker,
+                key=f"ep_asset_{rank}_{ticker}",
+                type="primary" if selected == ticker else "secondary",
+                width="stretch",
+            ):
+                st.session_state["ep_selected_asset"] = ticker
+                st.rerun()
 
         with cols[2]:
             st.write(f"${price:,.2f}" if price else "—")
