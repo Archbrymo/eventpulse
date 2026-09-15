@@ -1152,6 +1152,49 @@ def _live_evidence(
         st.info(f"Thesis selected for {asset['symbol']}.")
 
 
+
+def _thesis_status(asset):
+    status = asset.get("thesis_status") or asset.get("status")
+    thesis = asset.get("thesis")
+    entry = asset.get("entry_price")
+    current = asset.get("current_price") or asset.get("price")
+    return_pct = asset.get("return_pct")
+    invalidation = asset.get("invalidation_condition")
+
+    if not any((status, thesis, entry, return_pct, invalidation)):
+        return
+
+    st.markdown("#### Thesis tracking")
+
+    if status:
+        st.markdown(f"**Status:** `{str(status).upper()}`")
+
+    if thesis:
+        st.write(str(thesis))
+
+    cols = st.columns(2)
+
+    if entry is not None:
+        try:
+            cols[0].metric("Entry", f"${float(entry):,.2f}")
+        except (TypeError, ValueError):
+            pass
+
+    if current is not None:
+        try:
+            cols[1].metric("Current", f"${float(current):,.2f}")
+        except (TypeError, ValueError):
+            pass
+
+    if return_pct is not None:
+        try:
+            st.metric("Thesis return", f"{float(return_pct):+.2f}%")
+        except (TypeError, ValueError):
+            pass
+
+    if invalidation:
+        st.caption(f"Invalidation: {invalidation}")
+
 # ---------------------------------------------------------------------------
 # Agent Search
 # ---------------------------------------------------------------------------
