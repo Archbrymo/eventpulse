@@ -472,15 +472,30 @@ def build_ticker_data():
             )
         )
 
+        breakdown = item.get("evidence_breakdown") or {}
+
         output.append(
             {
                 "symbol": ticker,
+                "execution_symbol": ticker,
+                "ticker": str(item.get("ticker", ticker)),
+                "underlying": str(item.get("ticker", ticker)),
                 "price": price,
                 "last": price,
                 "change_pct": change,
                 "change_24h_pct": change,
                 "quote_volume": turnover,
                 "turnover_24h": turnover,
+                "fast_score": safe_float(
+                    item.get("fast_score", 0)
+                ),
+                "evidence_score": safe_float(
+                    item.get("evidence_score", 0)
+                ),
+                "evidence_breakdown": {
+                    str(key): safe_float(value)
+                    for key, value in breakdown.items()
+                },
             }
         )
 
