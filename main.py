@@ -913,6 +913,13 @@ def main():
                 "evidence_score": float(
                     candidate.get("evidence_score", 0.0)
                 ),
+                "evidence_breakdown": {
+                    str(key): float(value)
+                    for key, value in (
+                        candidate.get("evidence_breakdown", {})
+                        or {}
+                    ).items()
+                },
                 "last_price": float(
                     candidate.get("ticker_data", {}).get("last", 0.0)
                 ),
