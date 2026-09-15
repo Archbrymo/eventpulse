@@ -592,19 +592,7 @@ pipeline_for_ui["paper_execution"] = {
 }
 
 
-section = st.sidebar.radio(
-    "NAVIGATION",
-    [
-        "Overview",
-        "Portfolio",
-        "Events",
-        "Qwen Council",
-        "Risk",
-        "Execution",
-        "Thesis",
-        "Agent Search",
-    ],
-)
+section = st.session_state.get("ep_page", "Overview")
 
 
 if section == "Overview":
