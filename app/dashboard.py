@@ -608,8 +608,6 @@ render_premium_terminal(
     positions=open_position_count,
     pnl_24h=pnl_24h,
     current_page=section,
-    universe=universe,
-    portfolio=position_data,
 )
 
 st.markdown(
