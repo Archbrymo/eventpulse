@@ -955,7 +955,6 @@ def _market_intelligence(finalists=None):
                 width="stretch",
             ):
                 st.session_state["ep_selected_asset"] = ticker
-                st.rerun()
 
         with cols[2]:
             st.write(f"${price:,.2f}" if price else "—")
