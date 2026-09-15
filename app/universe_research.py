@@ -166,10 +166,19 @@ def research_candidates(
     for candidate in candidates:
         row = dict(candidate)
 
-        row["evidence_score"] = evidence_score(
+        row["evidence_breakdown"] = evidence_breakdown(
             candidate,
             event=event,
             portfolio=portfolio,
+        )
+
+        row["evidence_score"] = round(
+            _clamp(
+                sum(row["evidence_breakdown"].values()),
+                0,
+                100,
+            ),
+            2,
         )
 
         researched.append(row)
