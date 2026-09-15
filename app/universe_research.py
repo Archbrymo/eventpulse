@@ -13,175 +13,138 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def evidence_score(
+def evidence_breakdown(
     candidate: Dict[str, Any],
     event: Optional[Dict[str, Any]] = None,
     portfolio: Optional[Dict[str, Any]] = None,
-) -> float:
+) -> Dict[str, float]:
     """
-    Second-stage deterministic research score.
+    Return the individual evidence components used by the
+    deterministic evidence ranking layer.
 
-    Input:
-        Top ~50 from the cheap market screen.
-
-    Output:
-        0-100 research priority score.
-
-    This does NOT make a BUY/SELL decision.
-    It only determines which assets deserve expensive
-    evidence gathering and Qwen attention.
+    Components intentionally preserve the existing scoring model:
+    liquidity 0-25, momentum 0-20, directional signal 0-15,
+    market quality 0-15, event relevance 0-15,
+    diversification 0-10.
     """
 
     ticker = candidate.get("ticker_data") or {}
+    turnover = float(ticker.get("turnover", 0) or 0)
+    change = float(ticker.get("change24h", 0) or 0)
+    last = float(ticker.get("last", 0) or 0)
+    bid = float(ticker.get("bid", 0) or 0)
+    ask = float(ticker.get("ask", 0) or 0)
 
-    turnover = float(
-        ticker.get("quote_volume", 0) or 0
-    )
-
-    change = float(
-        ticker.get("change_pct", 0) or 0
-    )
-
-    last = float(
-        ticker.get("last", 0) or 0
-    )
-
-    bid = float(
-        ticker.get("bid", 0) or 0
-    )
-
-    ask = float(
-        ticker.get("ask", 0) or 0
-    )
-
-    score = 0.0
-
-    # -------------------------------------------------
-    # Liquidity: 0-25
-    # -------------------------------------------------
-
+    liquidity = 4.0
     if turnover >= 500_000_000:
-        score += 25
+        liquidity = 25.0
     elif turnover >= 250_000_000:
-        score += 22
+        liquidity = 22.0
     elif turnover >= 100_000_000:
-        score += 19
+        liquidity = 19.0
     elif turnover >= 50_000_000:
-        score += 16
+        liquidity = 16.0
     elif turnover >= 25_000_000:
-        score += 12
+        liquidity = 12.0
     elif turnover >= 10_000_000:
-        score += 8
-    else:
-        score += 4
-
-    # -------------------------------------------------
-    # Momentum / catalyst opportunity: 0-20
-    # -------------------------------------------------
+        liquidity = 8.0
 
     abs_change = abs(change)
 
     if 2 <= abs_change <= 6:
-        score += 20
+        momentum = 20.0
     elif 1 <= abs_change < 2:
-        score += 14
+        momentum = 14.0
     elif 6 < abs_change <= 10:
-        score += 15
+        momentum = 15.0
     elif abs_change > 10:
-        score += 8
+        momentum = 8.0
     else:
-        score += 5
-
-    # -------------------------------------------------
-    # Directional signal: 0-15
-    #
-    # Strong positive and negative moves both deserve
-    # research because the council can decide BUY,
-    # SELL, HOLD, or WAIT.
-    # -------------------------------------------------
+        momentum = 5.0
 
     if 2 <= abs_change <= 8:
-        score += 15
+        directional = 15.0
     elif abs_change > 8:
-        score += 10
+        directional = 10.0
     else:
-        score += 5
+        directional = 5.0
 
-    # -------------------------------------------------
-    # Market quality / spread: 0-15
-    # -------------------------------------------------
-
+    market_quality = 0.0
     if last > 0 and bid > 0 and ask > 0:
         spread_pct = ((ask - bid) / last) * 100
 
         if spread_pct <= 0.10:
-            score += 15
+            market_quality = 15.0
         elif spread_pct <= 0.25:
-            score += 12
+            market_quality = 12.0
         elif spread_pct <= 0.50:
-            score += 8
+            market_quality = 8.0
         elif spread_pct <= 1.00:
-            score += 4
+            market_quality = 4.0
 
-    # -------------------------------------------------
-    # Event relevance: 0-15
-    # -------------------------------------------------
-
+    event_relevance = 0.0
     if event:
-        event_ticker = str(
-            event.get("ticker", "")
-        ).upper()
-
+        event_ticker = str(event.get("ticker", "")).upper()
         candidate_ticker = str(
             candidate.get("underlying", "")
         ).upper()
 
-        if (
-            event_ticker
-            and event_ticker == candidate_ticker
-        ):
-            score += 15
+        if event_ticker and event_ticker == candidate_ticker:
+            event_relevance = 15.0
         elif event.get("relevance", 0) >= 0.75:
-            score += 5
+            event_relevance = 5.0
 
-    # -------------------------------------------------
-    # Portfolio diversification: 0-10
-    #
-    # Prefer candidates that are not already heavily
-    # represented in the paper portfolio.
-    # -------------------------------------------------
-
+    diversification = 0.0
     if portfolio:
-        positions = portfolio.get(
-            "positions",
-            {},
-        )
-
+        positions = portfolio.get("positions", {})
         symbol = candidate.get("symbol", "")
-
         position = positions.get(symbol)
 
         if position:
             quantity = float(
                 position.get("quantity", 0) or 0
             )
-
             value = quantity * last
 
-            # Existing exposure gets a modest penalty.
             if value > 10_000:
-                score -= 5
+                diversification = -5.0
             elif value > 5_000:
-                score -= 2
-
+                diversification = -2.0
+            else:
+                diversification = 0.0
         else:
-            score += 10
+            diversification = 10.0
 
-    return round(
-        _clamp(score, 0, 100),
-        2,
+    return {
+        "liquidity": liquidity,
+        "momentum": momentum,
+        "directional": directional,
+        "market_quality": market_quality,
+        "event_relevance": event_relevance,
+        "diversification": diversification,
+    }
+
+
+def evidence_score(
+    candidate: Dict[str, Any],
+    event: Optional[Dict[str, Any]] = None,
+    portfolio: Optional[Dict[str, Any]] = None,
+) -> float:
+    """
+    Preserve the existing deterministic evidence score while
+    deriving it from the auditable component breakdown.
+    """
+
+    components = evidence_breakdown(
+        candidate,
+        event=event,
+        portfolio=portfolio,
     )
 
+    return round(
+        _clamp(sum(components.values()), 0, 100),
+        2,
+    )
 
 def research_candidates(
     fast_limit: int = 50,
