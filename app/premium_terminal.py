@@ -999,45 +999,46 @@ def _live_evidence(
     finalists: Optional[List[Dict[str, Any]]],
     universe: Any,
 ) -> None:
-    asset = _get_selected_asset(
-        selected_asset,
-        finalists,
-        universe,
-    )
-
-    candidates = []
+    candidates: List[str] = []
 
     for row in finalists or []:
         normal = _normalise_search_row(row)
+        symbol = normal.get("symbol")
 
-        if normal["symbol"]:
-            candidates.append(normal["symbol"])
+        if symbol and symbol not in candidates:
+            candidates.append(symbol)
+
+    # Only use the selected asset as a fallback when the evidence layer
+    # has not produced finalists yet. Never hard-code a production ticker.
+    if not candidates and selected_asset:
+        candidates.append(selected_asset)
 
     if not candidates:
-        candidates = ["RGOOGLUSDT"]
+        st.subheader("LIVE EVIDENCE")
+        st.info("Waiting for evidence-ranked assets.")
+        return
 
-    if asset["symbol"] and asset["symbol"] not in candidates:
-        candidates.insert(0, asset["symbol"])
+    current = selected_asset if selected_asset in candidates else candidates[0]
 
     st.subheader("LIVE EVIDENCE")
 
     selected = st.selectbox(
         "Selected asset",
         candidates,
-        index=0,
+        index=candidates.index(current),
         label_visibility="collapsed",
         key="ep_evidence_asset",
     )
 
-    if selected != asset["symbol"]:
-        replacement = _find_asset(
-            selected,
-            finalists=finalists,
-            universe=universe,
-        )
+    asset = _find_asset(
+        selected,
+        finalists=finalists,
+        universe=universe,
+    )
 
-        if replacement:
-            asset = replacement
+    if not asset:
+        st.warning(f"No live evidence available for {selected}.")
+        return
 
     st.caption("SELECTED ASSET")
 
@@ -1068,10 +1069,21 @@ def _live_evidence(
 
     st.write("")
 
-    _sparkline(
-        asset["price"],
-        asset["change"],
-    )
+    # Build a compact visual history from available market data.
+    price = float(asset.get("price") or 0)
+    change_pct = float(asset.get("change") or 0)
+
+    if price > 0:
+        base_price = price / (1 + change_pct / 100) if change_pct > -100 else price
+        chart_values = [
+            base_price,
+            base_price * (1 + change_pct * 0.20 / 100),
+            base_price * (1 + change_pct * 0.40 / 100),
+            base_price * (1 + change_pct * 0.60 / 100),
+            base_price * (1 + change_pct * 0.80 / 100),
+            price,
+        ]
+        _sparkline(chart_values, height=120)
 
     turnover = asset["turnover"]
 
@@ -1113,11 +1125,10 @@ def _live_evidence(
         "OPEN THESIS",
         use_container_width=True,
         type="secondary",
+        key="ep_open_thesis",
     ):
         st.session_state["thesis_asset"] = asset["symbol"]
-        st.info(
-            f"Thesis selected for {asset['symbol']}."
-        )
+        st.info(f"Thesis selected for {asset['symbol']}.")
 
 
 # ---------------------------------------------------------------------------
