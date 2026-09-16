@@ -41,87 +41,7 @@ def analyze_event_with_finalists(
 
     evidence_lines = []
 
-    evidence_lines = []
-
     for i, item in enumerate(research_pack, 1):
-        # Canonical Evidence → Council adapter.
-        #
-        # Reality research provides:
-        #   symbol, underlying, ticker_data, evidence_score, ...
-        #
-        # The Council prompt consumes a stable enriched schema.
-        ticker = str(
-            item.get("underlying")
-            or item.get("ticker")
-            or item.get("symbol")
-            or ""
-        ).upper()
-
-        execution_symbol = str(
-            item.get("execution_symbol")
-            or item.get("symbol")
-            or ""
-        ).upper()
-
-        ticker_data = item.get("ticker_data") or {}
-
-        last_price = float(
-            ticker_data.get("last")
-            or item.get("last_price")
-            or item.get("price")
-            or 0.0
-        )
-
-        change_24h_pct = float(
-            ticker_data.get("change_pct")
-            or item.get("change_24h_pct")
-            or item.get("change_pct")
-            or 0.0
-        )
-
-        turnover_24h = float(
-            ticker_data.get("quote_volume")
-            or item.get("turnover_24h")
-            or item.get("quote_volume")
-            or 0.0
-        )
-
-        bid = float(
-            ticker_data.get("bid")
-            or item.get("bid")
-            or 0.0
-        )
-
-        ask = float(
-            ticker_data.get("ask")
-            or item.get("ask")
-            or 0.0
-        )
-
-        spread_pct = (
-            ((ask - bid) / ((ask + bid) / 2.0)) * 100.0
-            if bid > 0 and ask > 0 and ask >= bid
-            else 0.0
-        )
-
-        fast_score = float(
-            item.get("score")
-            or item.get("fast_score")
-            or 0.0
-        )
-
-        evidence_score = float(
-            item.get("evidence_score")
-            or 0.0
-        )
-
-        evidence_breakdown = item.get("evidence_breakdown") or {}
-
-        event_relevant = bool(
-            item.get("event_relevant")
-            or evidence_breakdown.get("event_relevance", 0)
-        )
-
         fundamentals_text = item.get(
             "fundamentals_text",
             "Fundamental data unavailable.",
@@ -132,35 +52,22 @@ def analyze_event_with_finalists(
             "Valuation data unavailable.",
         )
 
-        market_text = item.get(
-            "market_text",
-            "Market evidence derived from Bitget Reality.",
-        )
-
-        portfolio_text = item.get(
-            "portfolio_text",
-            "Portfolio context supplied separately.",
-        )
-
         evidence_lines.append(
             f"""
 ASSET {i}
-Ticker: {ticker}
-Execution symbol: {execution_symbol}
+Ticker: {item["ticker"]}
+Execution symbol: {item["execution_symbol"]}
 
 BITGET REALITY MARKET EVIDENCE
-Price: {last_price}
-24h move: {change_24h_pct:+.2f}%
-24h turnover: ${turnover_24h:,.0f}
-Bid: {bid}
-Ask: {ask}
-Spread: {spread_pct:.3f}%
-Fast screen score: {fast_score}
-Evidence score: {evidence_score}
-Event relevant: {event_relevant}
-
-Evidence breakdown:
-{evidence_breakdown}
+Price: {item["last_price"]}
+24h move: {item["change_24h_pct"]:+.2f}%
+24h turnover: ${item["turnover_24h"]:,.0f}
+Bid: {item["bid"]}
+Ask: {item["ask"]}
+Spread: {item["spread_pct"]:.3f}%
+Fast screen score: {item["fast_score"]}
+Evidence score: {item["evidence_score"]}
+Event relevant: {item["event_relevant"]}
 
 FUNDAMENTAL EVIDENCE
 Source: Yahoo Finance
@@ -169,14 +76,14 @@ Source: Yahoo Finance
 VALUATION EVIDENCE
 Source: Yahoo Finance
 {valuation_text}
-
-MARKET THESIS
-{market_text}
-
-PORTFOLIO CONTEXT
-{portfolio_text}
 """
         )
+
+    portfolio_text = json.dumps(
+        portfolio_context,
+        default=str,
+    )
+
     prompt = f"""
 You are the Qwen Investment Council inside EventPulse,
 an autonomous event-driven paper-trading system.

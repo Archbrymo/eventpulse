@@ -7,88 +7,6 @@ from pathlib import Path
 DB_PATH = Path(__file__).resolve().parent.parent / "eventpulse.db"
 
 
-
-def save_agent_cycle(
-    cycle_id,
-    stage,
-    status,
-    detail="",
-    ticker="",
-    decision="",
-    confidence=None,
-):
-    """Persist an observable event-driven agent cycle stage."""
-    conn = get_connection()
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS agent_cycles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cycle_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                stage TEXT NOT NULL,
-                status TEXT NOT NULL,
-                ticker TEXT,
-                decision TEXT,
-                confidence REAL,
-                detail TEXT
-            )
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO agent_cycles
-            (cycle_id, timestamp, stage, status, ticker, decision,
-             confidence, detail)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(cycle_id),
-                datetime.utcnow().isoformat(),
-                str(stage),
-                str(status),
-                str(ticker or ""),
-                str(decision or ""),
-                confidence,
-                str(detail or ""),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_agent_cycle(cycle_id=None, limit=100):
-    """Return observable agent-cycle audit rows."""
-    conn = get_connection()
-    try:
-        if cycle_id:
-            rows = conn.execute(
-                """
-                SELECT id, cycle_id, timestamp, stage, status,
-                       ticker, decision, confidence, detail
-                FROM agent_cycles
-                WHERE cycle_id = ?
-                ORDER BY id ASC
-                LIMIT ?
-                """,
-                (str(cycle_id), int(limit)),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT id, cycle_id, timestamp, stage, status,
-                       ticker, decision, confidence, detail
-                FROM agent_cycles
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (int(limit),),
-            ).fetchall()
-        return rows
-    finally:
-        conn.close()
-
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
@@ -352,7 +270,7 @@ def save_qwen_decision(
             )
             VALUES (
                 datetime('now'),
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             """,
             (

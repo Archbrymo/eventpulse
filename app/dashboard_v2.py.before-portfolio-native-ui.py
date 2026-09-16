@@ -561,15 +561,24 @@ def load_pipeline():
 
 
 def reset_test_account():
-    """Reset the paper account to initial cash with ZERO positions.
-
-    Qwen history and autonomous agent-cycle audit history are preserved.
-    Trading/activity state is cleared for a clean autonomous demo.
-    """
     initial_cash = float(get_initial_cash() or 0)
+    initial_positions = get_initial_positions() or {}
 
+    positions = {}
+    for symbol, data in initial_positions.items():
+        if isinstance(data, dict):
+            positions[symbol] = {
+                "quantity": float(data.get("quantity", 0)),
+                "average_price": float(data.get("average_price", 0)),
+            }
+        elif isinstance(data, (tuple, list)):
+            positions[symbol] = {
+                "quantity": float(data[0]),
+                "average_price": float(data[1]),
+            }
+
+    # Preserve initial account definition while clearing test activity.
     conn = get_connection()
-
     try:
         conn.execute("DELETE FROM trades")
         conn.execute("DELETE FROM equity_snapshots")
@@ -581,15 +590,11 @@ def reset_test_account():
 
     portfolio = {
         "cash": initial_cash,
-        "positions": {},
+        "positions": positions,
     }
-
-    save_portfolio(
-        portfolio,
-        equity=initial_cash,
-    )
-
+    save_portfolio(portfolio, equity=100000.0)
     return portfolio
+
 
 def selected_research_row(rows, ticker):
     for row in rows:
@@ -1185,6 +1190,68 @@ def render_qwen_news_interactive(
 
 
 
+def run_live_qwen_council(event, research_pack, portfolio):
+    """Execute the real Qwen investment council.
+
+    TEST MODE: deliberately uncached.
+    """
+    if not event:
+        return {"signals": [], "_error": "No live market event available."}
+
+    if not research_pack:
+        return {"signals": [], "_error": "Research pack is empty."}
+
+    try:
+        decision = analyze_event_with_finalists(
+            event=event,
+            research_pack=research_pack,
+            portfolio_context=portfolio,
+        )
+
+        result = decision.model_dump()
+
+        for signal in decision.signals:
+            price = None
+
+            for item in research_pack:
+                if str(item.get("ticker", "")).upper() == str(signal.ticker).upper():
+                    price = item.get("last_price")
+                    break
+
+            save_qwen_decision(
+                ticker=signal.ticker,
+                decision=signal.direction,
+                confidence=signal.confidence,
+                price=price,
+                reasoning=signal.reasoning,
+                catalyst=signal.catalyst,
+                fundamental_thesis=signal.fundamental_thesis,
+                valuation_thesis=signal.valuation_thesis,
+                market_thesis=signal.market_thesis,
+                bull_case=signal.bull_case,
+                bear_case=signal.bear_case,
+                invalidation_condition=signal.invalidation_condition,
+                expected_horizon=signal.expected_horizon,
+            )
+
+        return result
+
+    except Exception as exc:
+        import traceback
+        return {
+            "signals": [],
+            "_error": f"{type(exc).__name__}: {exc}",
+            "_traceback": traceback.format_exc(),
+        }
+
+
+def live_council_signal(decision):
+    if not decision:
+        return []
+
+    return decision.get("signals") or []
+
+
 def qwen_decisions(pipeline):
     return (
         pipeline.get("qwen_decisions")
@@ -1199,6 +1266,101 @@ def qwen_history():
         return get_qwen_decision_history(limit=100) or []
     except Exception:
         return []
+
+
+def persist_pipeline_qwen_decisions(decisions):
+    """
+    Persist pipeline Qwen decisions once they appear.
+    Avoid duplicate entries when Streamlit reruns.
+    """
+    if not decisions:
+        return
+
+    history = qwen_history()
+
+    recent_keys = set()
+
+    for row in history:
+        try:
+            # id, timestamp, ticker, decision, confidence, price, ...
+            ticker = str(row[2]).upper()
+            action = str(row[3]).upper()
+            price = row[5]
+            recent_keys.add(
+                (
+                    ticker,
+                    action,
+                    round(float(price), 4) if price is not None else None,
+                )
+            )
+        except Exception:
+            continue
+
+    for item in decisions:
+        if not isinstance(item, dict):
+            continue
+
+        ticker = (
+            item.get("ticker")
+            or item.get("symbol")
+            or item.get("underlying")
+        )
+
+        if not ticker:
+            continue
+
+        ticker = str(ticker).upper()
+
+        action = (
+            item.get("decision")
+            or item.get("action")
+            or item.get("signal")
+            or "WAIT"
+        )
+
+        action = str(action).upper()
+
+        if action not in {"BUY", "SELL", "HOLD", "WAIT"}:
+            continue
+
+        confidence = item.get("confidence")
+        price = (
+            item.get("price")
+            or item.get("current_price")
+            or item.get("entry_price")
+        )
+
+        try:
+            price_key = round(float(price), 4) if price is not None else None
+        except Exception:
+            price_key = None
+
+        key = (ticker, action, price_key)
+
+        if key in recent_keys:
+            continue
+
+        try:
+            save_qwen_decision(
+                ticker=ticker,
+                decision=action,
+                confidence=confidence,
+                price=price,
+                reasoning=item.get("reasoning", ""),
+                catalyst=item.get("catalyst", ""),
+                fundamental_thesis=item.get("fundamental_thesis", ""),
+                valuation_thesis=item.get("valuation_thesis", ""),
+                market_thesis=item.get("market_thesis", ""),
+                bull_case=item.get("bull_case", ""),
+                bear_case=item.get("bear_case", ""),
+                invalidation_condition=item.get(
+                    "invalidation_condition", ""
+                ),
+                expected_horizon=item.get("expected_horizon", ""),
+            )
+            recent_keys.add(key)
+        except Exception:
+            pass
 
 
 def decision_for(decisions, ticker):
@@ -1315,21 +1477,17 @@ with st.sidebar:
     if st.button("KILL ARMED", key="kill_armed", use_container_width=True):
         st.warning("Kill switch is armed for paper execution. No live orders are enabled.")
 
-    st.markdown('<div class="ep-section">PAPER CONTROL</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ep-section">TEST ACCOUNT</div>', unsafe_allow_html=True)
 
     if st.button(
-        "CLEAN SLATE — ZERO POSITIONS",
+        "RESET TEST ACCOUNT → $100,000",
         key="reset_account",
         use_container_width=True,
     ):
         reset_test_account()
         st.cache_data.clear()
         st.session_state.selected_asset = None
-        st.session_state.last_cycle_result = None
-        st.success(
-            "Clean slate restored. Initial cash available. "
-            "Positions: 0. Agent ready."
-        )
+        st.success("Paper test account restored to the initial $100,000 state.")
         st.rerun()
 
 
@@ -1861,345 +2019,40 @@ if st.session_state.page == "Overview":
 # ============================================================
 
 elif st.session_state.page == "Portfolio":
-    from app.database import (
-        get_latest_portfolio,
-        get_initial_positions,
-        get_trades,
+    st.markdown(
+        '<div class="ep-panel"><div class="ep-panel-title">PORTFOLIO</div>'
+        '<div class="ep-panel-sub">PAPER BOOK</div>',
+        unsafe_allow_html=True,
     )
 
-    st.title("Portfolio")
-    st.caption(
-        "PAPER BOOK · CAPITAL · POSITIONS · EXPOSURE"
-    )
-
-    portfolio = get_latest_portfolio() or {}
-    positions = portfolio.get("positions", {}) or {}
-
-    try:
-        cash = float(
-            portfolio.get("cash", 0.0) or 0.0
-        )
-    except Exception:
-        cash = 0.0
-
-    # ------------------------------------------------------------
-    # CURRENT BOOK
-    # ------------------------------------------------------------
-
-    position_rows = []
-    position_value = 0.0
-
-    for ticker, position in positions.items():
-        try:
-            quantity = float(
-                position.get("quantity", 0.0) or 0.0
-            )
-            average_price = float(
-                position.get("average_price", 0.0) or 0.0
-            )
-
-            notional = quantity * average_price
-            position_value += notional
-
-            position_rows.append(
-                {
-                    "Asset": ticker,
-                    "Quantity": quantity,
-                    "Average price": average_price,
-                    "Cost basis": notional,
-                }
-            )
-        except Exception:
-            continue
-
-    equity = cash + position_value
-
-    # ------------------------------------------------------------
-    # TOP METRICS
-    # ------------------------------------------------------------
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        st.metric(
-            "Equity",
-            f"${equity:,.2f}",
-        )
-
-    with c2:
-        st.metric(
-            "Cash",
-            f"${cash:,.2f}",
-        )
-
-    with c3:
-        st.metric(
-            "Invested",
-            f"${position_value:,.2f}",
-        )
-
-    with c4:
-        st.metric(
-            "Positions",
-            f"{len(position_rows):,}",
-        )
-
-    st.divider()
-
-    # ------------------------------------------------------------
-    # CAPITAL ALLOCATION
-    # ------------------------------------------------------------
-
-    st.subheader("Capital Allocation")
-
-    cash_weight = (
-        cash / equity
-        if equity > 0
-        else 0.0
-    )
-
-    invested_weight = (
-        position_value / equity
-        if equity > 0
-        else 0.0
-    )
-
-    a1, a2, a3 = st.columns(3)
-
-    with a1:
-        st.metric(
-            "Cash allocation",
-            f"{cash_weight:.1%}",
-        )
-
-    with a2:
-        st.metric(
-            "Invested allocation",
-            f"{invested_weight:.1%}",
-        )
-
-    with a3:
-        st.metric(
-            "Book state",
-            "LOADED",
-        )
-
-    # ------------------------------------------------------------
-    # POSITION TABLE
-    # ------------------------------------------------------------
-
-    st.subheader("Open Positions")
-
-    if position_rows:
-        for row in position_rows:
-            row["Weight"] = (
-                row["Cost basis"] / equity
-                if equity > 0
-                else 0.0
-            )
-
-        position_rows.sort(
-            key=lambda row: row["Cost basis"],
-            reverse=True,
-        )
-
-        position_df = pd.DataFrame(
-            position_rows
-        )
-
-        st.dataframe(
-            position_df.style.format(
-                {
-                    "Quantity": "{:,.6f}",
-                    "Average price": "${:,.2f}",
-                    "Cost basis": "${:,.2f}",
-                    "Weight": "{:.2%}",
-                }
-            ),
-            hide_index=True,
-            use_container_width=True,
-        )
-    else:
-        st.info(
-            "No open positions."
-        )
-
-    # ------------------------------------------------------------
-    # INITIAL BOOK
-    # ------------------------------------------------------------
-
-    st.divider()
-    st.subheader("Initial Book")
-
-    try:
-        initial_positions = (
-            get_initial_positions()
-            or {}
-        )
-    except Exception:
-        initial_positions = {}
-
-    if isinstance(initial_positions, dict):
-        initial_rows = []
-
-        for ticker, position in initial_positions.items():
-            if isinstance(position, dict):
-                quantity = float(
-                    position.get("quantity", 0.0) or 0.0
-                )
-                average_price = float(
-                    position.get("average_price", 0.0) or 0.0
-                )
-            else:
-                quantity = 0.0
-                average_price = 0.0
-
-            initial_rows.append(
-                {
-                    "Asset": ticker,
-                    "Quantity": quantity,
-                    "Average price": average_price,
-                    "Cost basis": quantity * average_price,
-                }
-            )
-
-        if initial_rows:
-            initial_df = pd.DataFrame(
-                initial_rows
-            )
-
-            st.dataframe(
-                initial_df.style.format(
-                    {
-                        "Quantity": "{:,.6f}",
-                        "Average price": "${:,.2f}",
-                        "Cost basis": "${:,.2f}",
-                    }
-                ),
-                hide_index=True,
-                use_container_width=True,
-            )
+    rows = []
+    for symbol, position in portfolio["positions"].items():
+        if isinstance(position, dict):
+            qty = position.get("quantity", 0)
+            avg = position.get("average_price", 0)
         else:
-            st.info(
-                "No initial position snapshot recorded."
-            )
-    else:
-        st.info(
-            "No initial position snapshot recorded."
+            qty, avg = position
+
+        rows.append(
+            {
+                "Asset": symbol,
+                "Quantity": qty,
+                "Average Price": avg,
+                "Notional": float(qty) * float(avg),
+            }
         )
 
-    # ------------------------------------------------------------
-    # TRADE ACTIVITY
-    # ------------------------------------------------------------
-
-    st.divider()
-    st.subheader("Recent Portfolio Activity")
-
-    try:
-        trades = get_trades() or []
-    except Exception:
-        trades = []
-
-    trade_rows = [
-        trade
-        for trade in reversed(trades)
-        if isinstance(trade, dict)
-    ][:10]
-
-    if trade_rows:
-        activity = []
-
-        for trade in trade_rows:
-            activity.append(
-                {
-                    "Timestamp": (
-                        trade.get("timestamp")
-                        or ""
-                    ),
-                    "Ticker": (
-                        trade.get("research_ticker")
-                        or trade.get("ticker")
-                        or "—"
-                    ),
-                    "Side": str(
-                        trade.get("side")
-                        or "—"
-                    ).upper(),
-                    "Quantity": trade.get(
-                        "quantity"
-                    ),
-                    "Price": trade.get(
-                        "price"
-                    ),
-                    "Notional": trade.get(
-                        "notional"
-                    ),
-                    "Status": str(
-                        trade.get("status")
-                        or "—"
-                    ).upper(),
-                }
-            )
-
-        activity_df = pd.DataFrame(
-            activity
-        )
-
+    if rows:
         st.dataframe(
-            activity_df.style.format(
-                {
-                    "Quantity": lambda value:
-                        "—"
-                        if pd.isna(value)
-                        else f"{float(value):,.6f}",
-                    "Price": lambda value:
-                        "—"
-                        if pd.isna(value)
-                        else f"${float(value):,.2f}",
-                    "Notional": lambda value:
-                        "—"
-                        if pd.isna(value)
-                        else f"${float(value):,.2f}",
-                }
-            ),
+            pd.DataFrame(rows),
             hide_index=True,
             use_container_width=True,
         )
     else:
-        st.info(
-            "No portfolio trades recorded yet."
-        )
+        st.info("No positions in the paper book.")
 
-    # ------------------------------------------------------------
-    # BOOK INTEGRITY
-    # ------------------------------------------------------------
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.divider()
-    st.subheader("Book Integrity")
-
-    i1, i2, i3 = st.columns(3)
-
-    with i1:
-        st.markdown("### Cash")
-        st.write(
-            "Tracked directly by the paper broker."
-        )
-
-    with i2:
-        st.markdown("### Positions")
-        st.write(
-            "Maintained by executed paper fills."
-        )
-
-    with i3:
-        st.markdown("### Equity")
-        st.write(
-            "Cash plus marked position cost basis."
-        )
-
-    st.caption(
-        "Portfolio is read-only. Refreshing this page cannot place trades."
-    )
 
 # ============================================================
 # EVENTS
@@ -2427,433 +2280,216 @@ elif st.session_state.page == "Events":
 # ============================================================
 
 elif st.session_state.page == "Qwen Council":
-    from app.database import get_qwen_decision_history
-
-    st.title("Qwen Council")
-    st.caption(
-        "QWEN INVESTMENT COUNCIL · READ-ONLY DECISION AUDIT"
+    st.markdown(
+        '<div class="ep-panel"><div class="ep-panel-title">QWEN COUNCIL</div>'
+        '<div class="ep-panel-sub">EVIDENCE → QWEN → DECISION</div>',
+        unsafe_allow_html=True,
     )
 
-    # ------------------------------------------------------------
-    # LOAD CANONICAL QWEN HISTORY
-    # ------------------------------------------------------------
+    decisions = qwen_decisions(pipeline)
 
-    try:
-        qwen_history = get_qwen_decision_history(
-            limit=100
-        )
-    except Exception as exc:
-        qwen_history = []
-        st.error(
-            f"Qwen history error: {exc}"
-        )
 
-    records = []
+    if not decisions:
 
-    for row in qwen_history or []:
-        if isinstance(row, dict):
-            records.append(dict(row))
-            continue
 
-        if not isinstance(row, (tuple, list)):
-            continue
+        try:
 
-        # qwen_decisions:
-        # id, timestamp, ticker, decision, confidence,
-        # price, reasoning, catalyst,
-        # fundamental_thesis, valuation_thesis,
-        # market_thesis, bull_case, bear_case,
-        # invalidation_condition, expected_horizon
 
-        fields = [
-            "id",
-            "timestamp",
-            "ticker",
-            "decision",
-            "confidence",
-            "price",
-            "reasoning",
-            "catalyst",
-            "fundamental_thesis",
-            "valuation_thesis",
-            "market_thesis",
-            "bull_case",
-            "bear_case",
-            "invalidation_condition",
-            "expected_horizon",
-        ]
+            history = qwen_history()
 
-        record = {}
 
-        for index, field in enumerate(fields):
-            if index < len(row):
-                record[field] = row[index]
+            decisions = [
 
-        records.append(record)
 
-    # ------------------------------------------------------------
-    # SUMMARY
-    # ------------------------------------------------------------
+                {
 
-    buy_count = sum(
-        str(record.get("decision", "")).upper()
-        == "BUY"
-        for record in records
+
+                    "ticker": row[2],
+
+
+                    "direction": row[3],
+
+
+                    "confidence": row[4],
+
+
+                    "reasoning": row[6],
+
+
+                }
+
+
+                for row in history[:10]
+
+
+            ]
+
+
+        except Exception:
+
+
+            decisions = []
+
+    # Persist current pipeline decisions.
+    persist_pipeline_qwen_decisions(decisions)
+
+    history = qwen_history()
+
+    # --------------------------------------------------------
+    # CURRENT COUNCIL
+    # --------------------------------------------------------
+    st.markdown(
+        '<div class="ep-panel-title" style="margin-top:14px;">'
+        'CURRENT COUNCIL</div>',
+        unsafe_allow_html=True,
     )
 
-    sell_count = sum(
-        str(record.get("decision", "")).upper()
-        == "SELL"
-        for record in records
-    )
+    if decisions:
+        for decision in decisions:
+            if not isinstance(decision, dict):
+                continue
 
-    wait_count = sum(
-        str(record.get("decision", "")).upper()
-        in {"WAIT", "HOLD"}
-        for record in records
-    )
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        st.metric(
-            "Council decisions",
-            len(records),
-        )
-
-    with c2:
-        st.metric(
-            "BUY",
-            buy_count,
-        )
-
-    with c3:
-        st.metric(
-            "SELL",
-            sell_count,
-        )
-
-    with c4:
-        st.metric(
-            "WAIT / HOLD",
-            wait_count,
-        )
-
-    st.divider()
-
-    if not records:
-        st.info(
-            "No Qwen decisions recorded yet. "
-            "Run the canonical agent cycle from Overview."
-        )
-    else:
-        # --------------------------------------------------------
-        # DECISION SELECTOR
-        # --------------------------------------------------------
-
-        labels = []
-
-        for index, record in enumerate(records):
             ticker = (
-                record.get("ticker")
+                decision.get("ticker")
+                or decision.get("symbol")
+                or decision.get("underlying")
                 or "UNKNOWN"
             )
 
-            decision = (
-                record.get("decision")
-                or "—"
+            action = (
+                decision.get("decision")
+                or decision.get("action")
+                or decision.get("signal")
+                or "WAIT"
             )
 
-            confidence = record.get(
-                "confidence"
+            confidence = decision.get("confidence")
+            price = (
+                decision.get("price")
+                or decision.get("current_price")
             )
 
-            confidence_text = (
-                "—"
-                if confidence is None
-                else f"{float(confidence):.0%}"
+            st.markdown(
+                f'<div class="ep-row">'
+                f'<b>{ticker}</b> &nbsp; '
+                f'<span class="ep-live">{str(action).upper()}</span> '
+                f'&nbsp; CONFIDENCE '
+                f'{confidence if confidence is not None else "—"}'
+                f' &nbsp; PRICE '
+                f'{money(price) if price is not None else "—"}'
+                f'</div>',
+                unsafe_allow_html=True,
             )
 
-            labels.append(
-                f"{ticker} · "
-                f"{str(decision).upper()} · "
-                f"{confidence_text}"
-            )
+            reasoning = decision.get("reasoning")
+            if reasoning:
+                st.caption(reasoning)
 
-        selected_index = st.selectbox(
-            "SELECT COUNCIL DECISION",
-            range(len(labels)),
-            format_func=lambda index:
-                labels[index],
-        )
+            for label, key in [
+                ("FUNDAMENTAL THESIS", "fundamental_thesis"),
+                ("VALUATION THESIS", "valuation_thesis"),
+                ("MARKET THESIS", "market_thesis"),
+                ("BULL CASE", "bull_case"),
+                ("BEAR CASE", "bear_case"),
+                ("INVALIDATION", "invalidation_condition"),
+            ]:
+                value = decision.get(key)
+                if value:
+                    st.markdown(f"**{label}**")
+                    st.caption(value)
 
-        selected = records[
-            selected_index
-        ]
+    else:
+        st.info("No current Qwen decision in the latest pipeline run.")
 
-        ticker = (
-            selected.get("ticker")
-            or "UNKNOWN"
-        )
-
-        decision = (
-            selected.get("decision")
-            or "—"
-        )
-
-        confidence = selected.get(
-            "confidence"
-        )
-
-        price = selected.get("price")
-
-        # --------------------------------------------------------
-        # DECISION HEADER
-        # --------------------------------------------------------
-
-        st.subheader(
-            str(ticker).upper()
-        )
-
-        d1, d2, d3 = st.columns(3)
-
-        with d1:
-            st.metric(
-                "Direction",
-                str(decision).upper(),
-            )
-
-        with d2:
-            st.metric(
-                "Confidence",
-                "—"
-                if confidence is None
-                else f"{float(confidence):.0%}",
-            )
-
-        with d3:
-            st.metric(
-                "Reference price",
-                "—"
-                if price is None
-                else f"${float(price):,.2f}",
-            )
-
-        # --------------------------------------------------------
-        # COUNCIL REASONING
-        # --------------------------------------------------------
-
-        st.divider()
-        st.subheader("Council Reasoning")
-
-        reasoning = (
-            selected.get("reasoning")
-            or ""
-        )
-
-        if reasoning:
-            st.write(reasoning)
-        else:
-            st.caption(
-                "No reasoning recorded."
-            )
-
-        catalyst = (
-            selected.get("catalyst")
-            or ""
-        )
-
-        if catalyst:
-            st.subheader("Catalyst")
-            st.write(catalyst)
-
-        # --------------------------------------------------------
-        # INVESTMENT CASE
-        # --------------------------------------------------------
-
-        c1, c2, c3 = st.columns(3)
-
-        with c1:
-            st.markdown("### Fundamental")
-            value = (
-                selected.get(
-                    "fundamental_thesis"
-                )
-                or ""
-            )
-            st.write(
-                value
-                if value
-                else "Not available."
-            )
-
-        with c2:
-            st.markdown("### Valuation")
-            value = (
-                selected.get(
-                    "valuation_thesis"
-                )
-                or ""
-            )
-            st.write(
-                value
-                if value
-                else "Not available."
-            )
-
-        with c3:
-            st.markdown("### Market")
-            value = (
-                selected.get(
-                    "market_thesis"
-                )
-                or ""
-            )
-            st.write(
-                value
-                if value
-                else "Not available."
-            )
-
-        # --------------------------------------------------------
-        # BULL / BEAR
-        # --------------------------------------------------------
-
-        st.divider()
-
-        b1, b2 = st.columns(2)
-
-        with b1:
-            st.subheader("Bull Case")
-            value = (
-                selected.get(
-                    "bull_case"
-                )
-                or ""
-            )
-            st.write(
-                value
-                if value
-                else "Not recorded."
-            )
-
-        with b2:
-            st.subheader("Bear Case")
-            value = (
-                selected.get(
-                    "bear_case"
-                )
-                or ""
-            )
-            st.write(
-                value
-                if value
-                else "Not recorded."
-            )
-
-        # --------------------------------------------------------
-        # INVALIDATION
-        # --------------------------------------------------------
-
-        st.subheader(
-            "Invalidation Condition"
-        )
-
-        invalidation = (
-            selected.get(
-                "invalidation_condition"
-            )
-            or ""
-        )
-
-        if invalidation:
-            st.warning(
-                invalidation
-            )
-        else:
-            st.caption(
-                "No invalidation condition recorded."
-            )
-
-        horizon = (
-            selected.get(
-                "expected_horizon"
-            )
-            or ""
-        )
-
-        if horizon:
-            st.subheader(
-                "Expected Horizon"
-            )
-            st.write(horizon)
-
-        # --------------------------------------------------------
-        # DECISION HISTORY
-        # --------------------------------------------------------
-
-        st.divider()
-        st.subheader(
-            "Council Decision History"
-        )
-
-        history_rows = []
-
-        for record in records:
-            history_rows.append(
-                {
-                    "Timestamp": (
-                        record.get(
-                            "timestamp"
-                        )
-                        or ""
-                    ),
-                    "Ticker": (
-                        record.get(
-                            "ticker"
-                        )
-                        or "—"
-                    ),
-                    "Decision": (
-                        record.get(
-                            "decision"
-                        )
-                        or "—"
-                    ),
-                    "Confidence": record.get(
-                        "confidence"
-                    ),
-                    "Price": record.get(
-                        "price"
-                    ),
-                }
-            )
-
-        history_df = pd.DataFrame(
-            history_rows
-        )
-
-        st.dataframe(
-            history_df.style.format(
-                {
-                    "Confidence": lambda value:
-                        "—"
-                        if pd.isna(value)
-                        else f"{float(value):.0%}",
-                    "Price": lambda value:
-                        "—"
-                        if pd.isna(value)
-                        else f"${float(value):,.2f}",
-                }
-            ),
-            hide_index=True,
-            use_container_width=True,
-        )
-
-    st.caption(
-        "Qwen Council is read-only. "
-        "Decisions are generated by the canonical event-driven agent cycle."
+    # --------------------------------------------------------
+    # DECISION HISTORY
+    # --------------------------------------------------------
+    st.markdown(
+        '<div class="ep-panel-title" style="margin-top:24px;">'
+        'DECISION HISTORY</div>'
+        '<div class="ep-panel-sub">'
+        'PREVIOUS BUY / SELL / HOLD / WAIT DECISIONS'
+        '</div>',
+        unsafe_allow_html=True,
     )
+
+    if history:
+        rows = []
+
+        for row in history:
+            try:
+                rows.append(
+                    {
+                        "Time": row[1],
+                        "Ticker": row[2],
+                        "Decision": str(row[3]).upper(),
+                        "Confidence": row[4],
+                        "Price": row[5],
+                        "Reasoning": row[6],
+                    }
+                )
+            except Exception:
+                continue
+
+        if rows:
+            st.dataframe(
+                pd.DataFrame(rows),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            st.markdown(
+                '<div class="ep-small" style="margin-top:8px;">'
+                'Persistent SQLite audit trail. Includes BUY, SELL, HOLD and WAIT.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("No persistent Qwen decisions recorded yet.")
+    else:
+        st.info("No persistent Qwen decisions recorded yet.")
+
+    # --------------------------------------------------------
+    # TRADING DECISION HISTORY
+    # --------------------------------------------------------
+    trades = get_trades() or []
+
+    if trades:
+        st.markdown(
+            '<div class="ep-panel-title" style="margin-top:24px;">'
+            'EXECUTION HISTORY</div>'
+            '<div class="ep-panel-sub">'
+            'PAPER BUY / SELL ACTIVITY'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        execution_rows = []
+
+        for trade in trades:
+            try:
+                execution_rows.append(
+                    {
+                        "Time": trade[1],
+                        "Ticker": trade[2],
+                        "Decision": str(trade[3]).upper(),
+                        "Quantity": trade[4],
+                        "Price": trade[5],
+                        "Reasoning": trade[8] if len(trade) > 8 else "",
+                    }
+                )
+            except Exception:
+                continue
+
+        if execution_rows:
+            st.dataframe(
+                pd.DataFrame(execution_rows),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ============================================================
 # RISK
@@ -3499,8 +3135,8 @@ elif st.session_state.page == "Execution":
 
 elif st.session_state.page == "Thesis":
     from app.database import (
+        get_qwen_decisions,
         get_thesis_records,
-        get_qwen_history,
     )
 
     st.title("Thesis")
@@ -3518,7 +3154,7 @@ elif st.session_state.page == "Thesis":
         thesis_records = []
 
     try:
-        qwen_records = get_qwen_history()
+        qwen_records = get_qwen_decisions()
     except Exception:
         qwen_records = []
 
