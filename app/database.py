@@ -1,93 +1,15 @@
 
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
 
-DB_PATH = Path(__file__).resolve().parent.parent / "eventpulse.db"
+DATA_DIR = Path(os.environ.get("EVENTPULSE_DATA_DIR") or (Path(__file__).resolve().parent.parent))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+DB_PATH = DATA_DIR / "eventpulse.db"
 
-
-def save_agent_cycle(
-    cycle_id,
-    stage,
-    status,
-    detail="",
-    ticker="",
-    decision="",
-    confidence=None,
-):
-    """Persist an observable event-driven agent cycle stage."""
-    conn = get_connection()
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS agent_cycles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cycle_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                stage TEXT NOT NULL,
-                status TEXT NOT NULL,
-                ticker TEXT,
-                decision TEXT,
-                confidence REAL,
-                detail TEXT
-            )
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO agent_cycles
-            (cycle_id, timestamp, stage, status, ticker, decision,
-             confidence, detail)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(cycle_id),
-                datetime.utcnow().isoformat(),
-                str(stage),
-                str(status),
-                str(ticker or ""),
-                str(decision or ""),
-                confidence,
-                str(detail or ""),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_agent_cycle(cycle_id=None, limit=100):
-    """Return observable agent-cycle audit rows."""
-    conn = get_connection()
-    try:
-        if cycle_id:
-            rows = conn.execute(
-                """
-                SELECT id, cycle_id, timestamp, stage, status,
-                       ticker, decision, confidence, detail
-                FROM agent_cycles
-                WHERE cycle_id = ?
-                ORDER BY id ASC
-                LIMIT ?
-                """,
-                (str(cycle_id), int(limit)),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT id, cycle_id, timestamp, stage, status,
-                       ticker, decision, confidence, detail
-                FROM agent_cycles
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (int(limit),),
-            ).fetchall()
-        return rows
-    finally:
-        conn.close()
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -291,143 +213,6 @@ def log_trade(
         execution_symbol=execution_symbol,
         status=status,
     )
-
-
-def save_qwen_decision(
-    ticker,
-    decision,
-    confidence=None,
-    price=None,
-    reasoning="",
-    catalyst="",
-    fundamental_thesis="",
-    valuation_thesis="",
-    market_thesis="",
-    bull_case="",
-    bear_case="",
-    invalidation_condition="",
-    expected_horizon="",
-):
-    conn = get_connection()
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS qwen_decisions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                ticker TEXT NOT NULL,
-                decision TEXT NOT NULL,
-                confidence REAL,
-                price REAL,
-                reasoning TEXT,
-                catalyst TEXT,
-                fundamental_thesis TEXT,
-                valuation_thesis TEXT,
-                market_thesis TEXT,
-                bull_case TEXT,
-                bear_case TEXT,
-                invalidation_condition TEXT,
-                expected_horizon TEXT
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            INSERT INTO qwen_decisions (
-                timestamp,
-                ticker,
-                decision,
-                confidence,
-                price,
-                reasoning,
-                catalyst,
-                fundamental_thesis,
-                valuation_thesis,
-                market_thesis,
-                bull_case,
-                bear_case,
-                invalidation_condition,
-                expected_horizon
-            )
-            VALUES (
-                datetime('now'),
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """,
-            (
-                str(ticker),
-                str(decision).upper(),
-                float(confidence) if confidence is not None else None,
-                float(price) if price is not None else None,
-                reasoning or "",
-                catalyst or "",
-                fundamental_thesis or "",
-                valuation_thesis or "",
-                market_thesis or "",
-                bull_case or "",
-                bear_case or "",
-                invalidation_condition or "",
-                expected_horizon or "",
-            ),
-        )
-
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_qwen_decision_history(limit=100, ticker=None):
-    conn = get_connection()
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS qwen_decisions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                ticker TEXT NOT NULL,
-                decision TEXT NOT NULL,
-                confidence REAL,
-                price REAL,
-                reasoning TEXT,
-                catalyst TEXT,
-                fundamental_thesis TEXT,
-                valuation_thesis TEXT,
-                market_thesis TEXT,
-                bull_case TEXT,
-                bear_case TEXT,
-                invalidation_condition TEXT,
-                expected_horizon TEXT
-            )
-            """
-        )
-
-        if ticker:
-            cur = conn.execute(
-                """
-                SELECT *
-                FROM qwen_decisions
-                WHERE ticker = ?
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (str(ticker).upper(), int(limit)),
-            )
-        else:
-            cur = conn.execute(
-                """
-                SELECT *
-                FROM qwen_decisions
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (int(limit),),
-            )
-
-        return cur.fetchall()
-    finally:
-        conn.close()
-
 
 def get_trades():
     conn = get_connection()
@@ -1074,3 +859,4 @@ def load_portfolio():
         float(portfolio.get("cash", 0.0)),
         portfolio.get("positions", {}),
     )
+

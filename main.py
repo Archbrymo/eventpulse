@@ -25,6 +25,7 @@ from app.database import (
     log_event,
     log_equity_snapshot,
     create_thesis,
+    DATA_DIR,
 )
 from app.market import get_prices
 from app.news import get_market_events
@@ -939,7 +940,7 @@ def main():
         "qwen_council": len(finalists),
     }
 
-    Path(".eventpulse_pipeline.json").write_text(
+    (DATA_DIR / ".eventpulse_pipeline.json").write_text(
         json.dumps(
             pipeline_snapshot,
             indent=2,
@@ -1011,7 +1012,7 @@ def main():
             if direction in decision_counts:
                 decision_counts[direction] += 1
 
-        pipeline_file = Path(".eventpulse_pipeline.json")
+        pipeline_file = (DATA_DIR / ".eventpulse_pipeline.json")
 
         try:
             pipeline_snapshot = json.loads(
@@ -1114,7 +1115,7 @@ def main():
     )
 
     # Persist actual risk and paper-execution outcomes.
-    pipeline_file = Path(".eventpulse_pipeline.json")
+    pipeline_file = (DATA_DIR / ".eventpulse_pipeline.json")
 
     try:
         pipeline_snapshot = json.loads(
@@ -1294,3 +1295,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
