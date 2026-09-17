@@ -187,19 +187,3 @@ def evaluate_market_gates(
     if trades_today is not None and trades_today >= MAX_TRADES_PER_DAY:
         return False, f"daily trade cap {MAX_TRADES_PER_DAY} reached"
     return True, "ok"
-
-
-# Compatibility API.
-# Returns a deterministic notional position size while respecting
-# the module's existing portfolio and position limits.
-def calculate_position_size(
-    portfolio_value,
-    confidence=1.0,
-    max_trade_pct=MAX_TRADE_PORTFOLIO_PCT,
-    max_position_pct=MAX_POSITION_PCT,
-):
-    portfolio_value = float(portfolio_value or 0.0)
-    confidence = max(0.0, min(1.0, float(confidence or 0.0)))
-    trade_cap = portfolio_value * float(max_trade_pct)
-    position_cap = portfolio_value * float(max_position_pct)
-    return max(0.0, min(trade_cap * confidence, position_cap))

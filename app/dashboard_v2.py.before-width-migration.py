@@ -61,6 +61,97 @@ html, body, [data-testid="stAppViewContainer"] {
     color: var(--text);
 }
 
+/* EVENTPULSE GLOBAL TYPOGRAPHY */
+
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stSidebar"],
+.stMarkdown,
+.stText,
+.stCaption,
+button,
+input,
+textarea,
+select,
+[data-baseweb="select"],
+[data-testid="stMetric"],
+[data-testid="stDataFrame"] {
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif !important;
+}
+
+.ep-mono,
+.ep-wordmark,
+.ep-sub,
+.ep-panel-title,
+.ep-panel-sub,
+.ep-metric-label,
+.ep-metric-value,
+.ep-stage-label,
+.ep-stage-value,
+.ep-ticker,
+.ep-small,
+.ep-status {
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace !important;
+}
+
+[data-testid="stMetricLabel"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"] {
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif !important;
+}
+
+.ep-deploy {
+    border: 1px solid var(--teal);
+    background: #0B1111;
+    color: var(--teal);
+    padding: 11px 13px;
+    margin: 8px 0 12px;
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace;
+    font-size: 10px;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+}
+
+.ep-deploy-status {
+    color: #7F8995;
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace;
+    font-size: 9px;
+    letter-spacing: .08em;
+    margin-top: 4px;
+}
+
 [data-testid="stHeader"] {
     background: var(--void);
 }
@@ -1648,27 +1739,47 @@ blocked_count = int(
     or 0
 )
 
-# Explicit paper-cycle trigger.
-# Refreshes never submit orders.
+# Explicit paper-agent deployment.
+# Deployment always uses the canonical event-driven cycle.
+# Risk remains downstream and cannot be bypassed.
+
 cycle_col, status_col = st.columns([1, 3])
 
 with cycle_col:
+    st.markdown(
+        '<div class="ep-deploy">AUTONOMOUS PAPER AGENT</div>',
+        unsafe_allow_html=True,
+    )
+
     if st.button(
-        "RUN AGENT CYCLE",
-        key="run_eventpulse_cycle",
+        "DEPLOY AGENT",
+        key="deploy_eventpulse_agent",
+        type="primary",
         use_container_width=True,
     ):
         with st.spinner(
-            "Running Reality → Evidence → Qwen → Risk → Paper..."
+            "Deploying Reality → Evidence → Qwen → Risk → Paper..."
         ):
-            st.session_state.eventpulse_cycle = (
-                execute_live_agent_cycle(
-                    execute_paper=True
-                )
+            result = execute_live_agent_cycle(
+                execute_paper=True
             )
+
+        st.session_state.eventpulse_cycle = result
+        st.session_state.agent_deployed = True
 
         st.cache_data.clear()
         st.rerun()
+
+    if st.session_state.get("agent_deployed"):
+        st.markdown(
+            '<div class="ep-deploy-status">● DEPLOYED · PAPER EXECUTION ENABLED</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="ep-deploy-status">○ OFFLINE · PAPER EXECUTION ARMED ON DEPLOY</div>',
+            unsafe_allow_html=True,
+        )
 
 with status_col:
     cycle_error = cycle_result.get("error")
@@ -1681,17 +1792,19 @@ with status_col:
         st.caption(
             " · ".join([
                 f"CYCLE {cycle_result.get('cycle_id', '—')}",
-                f"QWEN {qwen_count}",
-                f"APPROVED {approved_count}",
-                f"FILLED {filled_count}",
-                f"BLOCKED {blocked_count}",
+                f"REALITY {cycle_result.get('reality', 0)}",
+                f"EVIDENCE {cycle_result.get('evidence', 0)}",
+                f"QWEN {cycle_result.get('qwen', 0)}",
+                f"APPROVED {cycle_result.get('approved', 0)}",
+                f"FILLED {cycle_result.get('filled', 0)}",
+                f"BLOCKED {cycle_result.get('blocked', 0)}",
                 "PAPER ONLY",
             ])
         )
     else:
         st.caption(
-            "No cycle has been run this session. "
-            "Dashboard refreshes do not place orders."
+            "Agent is offline. Deploying runs the canonical "
+            "event-driven paper-trading cycle."
         )
 
 stages = [
@@ -3664,8 +3777,8 @@ elif st.session_state.page == "Execution":
 
 elif st.session_state.page == "Thesis":
     from app.database import (
-        get_thesis_records,
-        get_qwen_history,
+        get_open_theses,
+        get_qwen_decision_history,
     )
 
     st.title("Thesis")
@@ -3678,12 +3791,12 @@ elif st.session_state.page == "Thesis":
     # ------------------------------------------------------------
 
     try:
-        thesis_records = get_thesis_records()
+        thesis_records = get_open_theses()
     except Exception:
         thesis_records = []
 
     try:
-        qwen_records = get_qwen_history()
+        qwen_records = get_qwen_decision_history(limit=100)
     except Exception:
         qwen_records = []
 
@@ -3929,21 +4042,35 @@ elif st.session_state.page == "Thesis":
 
         with e1:
             st.markdown("### Fundamental")
-            fundamental = selected.get("fundamental_thesis") or ""
-            st.write(
-                fundamental
-                if fundamental
-                else "No fundamental thesis recorded."
+            fundamental = (
+                selected.get("fundamental_thesis")
+                or selected.get("fundamental")
+                or ""
             )
+
+            if fundamental:
+                st.write(fundamental)
+            else:
+                st.caption(
+                    "No fundamental thesis recorded. "
+                    "Qwen did not receive usable fundamental evidence."
+                )
 
         with e2:
             st.markdown("### Valuation")
-            valuation = selected.get("valuation_thesis") or ""
-            st.write(
-                valuation
-                if valuation
-                else "No valuation thesis recorded."
+            valuation = (
+                selected.get("valuation_thesis")
+                or selected.get("valuation")
+                or ""
             )
+
+            if valuation:
+                st.write(valuation)
+            else:
+                st.caption(
+                    "No valuation thesis recorded. "
+                    "Qwen did not receive usable valuation evidence."
+                )
 
         with e3:
             st.markdown("### Market")
