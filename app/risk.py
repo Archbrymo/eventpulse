@@ -9,6 +9,12 @@ MAX_POSITION_PCT = 0.20
 MAX_DAILY_LOSS_PCT = 0.02
 MAX_DRAWDOWN_PCT = 0.10
 
+MAX_SPREAD_BPS = 25.0
+MIN_TURNOVER_24H = 5_000_000.0
+MAX_TRADES_PER_DAY = 8
+RISK_PER_TRADE_PCT = 0.005
+ATR_STOP_MULT = 1.5
+
 
 def approve_signal(signal: AssetSignal) -> bool:
     """
@@ -167,3 +173,17 @@ def calculate_quantity_from_notional(
         return 0.0
 
     return round(notional / price, 6)
+
+
+def evaluate_market_gates(
+    spread_bps: Optional[float] = None,
+    turnover_24h: Optional[float] = None,
+    trades_today: Optional[int] = None,
+) -> tuple[bool, str]:
+    if spread_bps is not None and spread_bps > MAX_SPREAD_BPS:
+        return False, f"spread {spread_bps:.1f} bps exceeds {MAX_SPREAD_BPS:.0f} bps"
+    if turnover_24h is not None and turnover_24h < MIN_TURNOVER_24H:
+        return False, f"turnover {turnover_24h:.0f} below {MIN_TURNOVER_24H:.0f}"
+    if trades_today is not None and trades_today >= MAX_TRADES_PER_DAY:
+        return False, f"daily trade cap {MAX_TRADES_PER_DAY} reached"
+    return True, "ok"

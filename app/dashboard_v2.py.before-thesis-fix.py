@@ -3664,8 +3664,8 @@ elif st.session_state.page == "Execution":
 
 elif st.session_state.page == "Thesis":
     from app.database import (
-        get_open_theses,
-        get_qwen_decision_history,
+        get_thesis_records,
+        get_qwen_history,
     )
 
     st.title("Thesis")
@@ -3678,12 +3678,12 @@ elif st.session_state.page == "Thesis":
     # ------------------------------------------------------------
 
     try:
-        thesis_records = get_open_theses()
+        thesis_records = get_thesis_records()
     except Exception:
         thesis_records = []
 
     try:
-        qwen_records = get_qwen_decision_history(limit=100)
+        qwen_records = get_qwen_history()
     except Exception:
         qwen_records = []
 

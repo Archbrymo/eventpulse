@@ -310,176 +310,11 @@ div[data-testid="stButton"] > button:hover {
 
 hr {
     border-color: var(--line);
-    opacity: .55;
 }
 
 [data-testid="stDataFrame"] {
     border: 1px solid var(--line);
 }
-
-/* ============================================================
-   EVENTPULSE UI BUILD 01
-   Controlled visual refinement — no layout or logic changes.
-   ============================================================ */
-
-html, body, [data-testid="stAppViewContainer"] {
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.block-container {
-    max-width: 1760px;
-    padding-left: 2.0rem;
-    padding-right: 2.0rem;
-    padding-top: 1.35rem;
-}
-
-[data-testid="stSidebar"] {
-    width: 228px;
-}
-
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
-    line-height: 1.25;
-}
-
-.ep-wordmark {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 23px;
-    letter-spacing: .16em;
-}
-
-.ep-sub {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8px;
-    letter-spacing: .12em;
-    line-height: 1.5;
-}
-
-.ep-title {
-    font-size: 24px;
-    letter-spacing: -.025em;
-    font-weight: 650;
-}
-
-.ep-panel {
-    background: #101318;
-    border: 1px solid #292E35;
-    padding: 17px;
-}
-
-.ep-panel-title {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 10px;
-    letter-spacing: .13em;
-}
-
-.ep-panel-sub {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8px;
-    letter-spacing: .10em;
-}
-
-.ep-metric {
-    background: #101318;
-    border: 1px solid #292E35;
-    padding: 15px;
-    min-height: 98px;
-}
-
-.ep-metric-label,
-.ep-metric-caption,
-.ep-small,
-.ep-stage-label {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.ep-metric-label {
-    font-size: 8px;
-    letter-spacing: .12em;
-}
-
-.ep-metric-value {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 21px;
-    letter-spacing: -.03em;
-}
-
-.ep-stage {
-    background: #101318;
-    border-color: #292E35;
-    padding: 12px 8px;
-}
-
-.ep-stage-value {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.ep-note {
-    background: #0B0E12;
-    border-color: #292E35;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
-}
-
-.ep-tape-wrap {
-    background: #080A0D;
-    border-color: #292E35;
-    margin: 17px 0;
-}
-
-.ep-tape-item {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 10px;
-}
-
-.ep-row {
-    border-bottom-color: #20252C;
-    padding: 9px 0;
-}
-
-div[data-testid="stButton"] > button {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 10px;
-    letter-spacing: .035em;
-    background: #0D1014;
-    border-color: #292E35;
-    min-height: 32px;
-    transition: border-color .15s ease, color .15s ease, background .15s ease;
-}
-
-div[data-testid="stButton"] > button:hover {
-    background: #11171A;
-    border-color: var(--teal);
-    color: var(--teal);
-}
-
-[data-baseweb="select"] > div {
-    min-height: 38px;
-    background: #0D1014;
-    border-color: #292E35;
-}
-
-[data-baseweb="select"] input {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-[data-testid="stSidebar"] div[data-testid="stButton"] > button {
-    justify-content: flex-start;
-    text-align: left;
-    border-color: transparent;
-    background: transparent;
-    min-height: 34px;
-    padding-left: 10px;
-}
-
-[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
-    background: #101419;
-    border-color: #252B31;
-}
-
-.ep-panel-tall {
-    min-height: 540px;
-}
-
 
     .ep-event-detail {
         border: 1px solid #252A31;
@@ -3664,8 +3499,8 @@ elif st.session_state.page == "Execution":
 
 elif st.session_state.page == "Thesis":
     from app.database import (
-        get_open_theses,
-        get_qwen_decision_history,
+        get_thesis_records,
+        get_qwen_history,
     )
 
     st.title("Thesis")
@@ -3678,12 +3513,12 @@ elif st.session_state.page == "Thesis":
     # ------------------------------------------------------------
 
     try:
-        thesis_records = get_open_theses()
+        thesis_records = get_thesis_records()
     except Exception:
         thesis_records = []
 
     try:
-        qwen_records = get_qwen_decision_history(limit=100)
+        qwen_records = get_qwen_history()
     except Exception:
         qwen_records = []
 
