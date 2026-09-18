@@ -1,0 +1,9 @@
+{
+  "project": "EventPulse",
+  "tagline": "Autonomous Event-Driven Trading Terminal",
+  "hackathon": {
+    "name": "Bitget AI Base Camp Hackathon S2",
+    "track": "Agentic Trading",
+    "subtrack": "Event-driven Agent"
+  }
+}
