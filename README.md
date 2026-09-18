@@ -1,6 +1,6 @@
-## 🚂 Deployment
+## EventPulse Demo
 
-[Railway Deployment](https://railway.com/project/c53e69a0-76ad-49de-9ff1-245d8bfcca1b/service/cf865d2b-e350-44c1-861b-652d07ca812b?environmentId=3aebe0ef-6b58-493a-a49e-af465f36575d)
+[Railway Deployment]([https://railway.com/project/c53e69a0-76ad-49de-9ff1-245d8bfcca1b/service/cf865d2b-e350-44c1-861b-652d07ca812b?environmentId=3aebe0ef-6b58-493a-a49e-af465f36575d](https://eventpulse-production-d19e.up.railway.app/)
 
 
 # EVENTPULSE
