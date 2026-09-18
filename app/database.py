@@ -112,11 +112,33 @@ def init_db():
             side TEXT NOT NULL,
             quantity REAL NOT NULL,
             price REAL NOT NULL,
-            notional REAL NOT NULL,
+            notional REAL NOT NULL DEFAULT 0,
             reason TEXT,
-            status TEXT DEFAULT 'FILLED'
+            status TEXT DEFAULT 'FILLED',
+            value REAL,
+            confidence REAL,
+            reasoning TEXT
         )
     """)
+
+    trade_columns = {
+        row[1]
+        for row in cursor.execute(
+            "PRAGMA table_info(trades)"
+        ).fetchall()
+    }
+
+    for column, definition in {
+        "value": "REAL",
+        "confidence": "REAL",
+        "reasoning": "TEXT",
+        "execution_symbol": "TEXT",
+        "status": "TEXT DEFAULT 'FILLED'",
+    }.items():
+        if column not in trade_columns:
+            cursor.execute(
+                f'ALTER TABLE trades ADD COLUMN "{column}" {definition}'
+            )
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS portfolio (
@@ -808,11 +830,11 @@ def get_initial_positions():
 
     cursor.execute("""
         SELECT
-            symbol,
+            execution_symbol,
             quantity,
             average_price
         FROM initial_positions
-        ORDER BY symbol
+        ORDER BY execution_symbol
     """)
 
     rows = cursor.fetchall()
@@ -1282,7 +1304,11 @@ def load_portfolio():
     portfolio = get_latest_portfolio()
 
     if portfolio is None:
-        return 0.0, {}
+        portfolio = {
+            "cash": 100000.0,
+            "positions": {},
+        }
+        save_portfolio(portfolio)
 
     return (
         float(portfolio.get("cash", 0.0)),

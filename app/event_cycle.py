@@ -577,8 +577,8 @@ def run_event_driven_cycle(execute_paper=False):
 
                 # Persist the mutated PaperBroker portfolio.
                 save_portfolio(
-                    portfolio["cash"],
-                    portfolio["positions"],
+                    portfolio,
+                    equity=_portfolio_equity(portfolio),
                 )
 
                 result["filled"] += 1
