@@ -1,7 +1,11 @@
-from __future__ import annotations
+imporfrom __future__ import annotations
 
 import json
 import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import streamlit as st
@@ -14,6 +18,8 @@ from app.database import (
     load_initial_portfolio,
     DATA_DIR,
 )
+
+from app.premium_terminal import render_premium_terminal
 
 from app.premium_terminal import render_premium_terminal
 
