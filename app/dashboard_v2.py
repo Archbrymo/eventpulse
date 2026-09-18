@@ -694,10 +694,124 @@ div[data-testid="stButton"] > button:hover {
         border-color: #343A42;
     }
 
+
+    /* ========================================================
+       EVENTPULSE PAIR LOGOS
+       ======================================================== */
+
+    .ep-pair-logo {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        border: 1px solid #30363D;
+        border-radius: 3px;
+        background: #0B0E12;
+        color: #DCE2E8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 8px;
+        font-weight: 800;
+        letter-spacing: .02em;
+        vertical-align: middle;
+    }
+
+    .ep-pair-logo-large {
+        width: 48px;
+        height: 48px;
+        min-width: 48px;
+        border-color: #2EE6C8;
+        color: #2EE6C8;
+        background: #0A1112;
+        font-size: 10px;
+    }
+
+    .ep-pair-logo span {
+        line-height: 1;
+    }
+
+    .ep-pair-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ep-live-asset-head {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        margin: 8px 0 14px 0;
+    }
+
+    .ep-live-asset-symbol {
+        color: #E7EBEF;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: .04em;
+    }
+
+    .ep-live-asset-caption {
+        color: #68737E;
+        font-size: 9px;
+        margin-top: 3px;
+        letter-spacing: .08em;
+    }
+
 </style>
 """,
     unsafe_allow_html=True,
 )
+
+
+
+# ============================================================
+# EVENTPULSE PAIR IDENTITY
+# ============================================================
+
+PAIR_LOGO_MAP = {
+    "RGOOGLUSDT": "GOOGL",
+    "RSOXLUSDT": "SOXL",
+    "RCOINUSDT": "COIN",
+    "RMETAUSDT": "META",
+    "RJPHUSDT": "JPM",
+    "RSOXSUSDT": "SOXS",
+    "RBACUSDT": "BAC",
+    "RGSUSDT": "GS",
+    "RAAPLUSDT": "AAPL",
+    "RAMZNUSDT": "AMZN",
+    "RNVDAUSDT": "NVDA",
+    "RMSFTUSDT": "MSFT",
+    "RQQQUSDT": "QQQ",
+    "RSPYUSDT": "SPY",
+    "RTSLAUSDT": "TSLA",
+}
+
+def pair_logo_symbol(ticker):
+    ticker = str(ticker or "").upper()
+    if ticker in PAIR_LOGO_MAP:
+        return PAIR_LOGO_MAP[ticker]
+
+    clean = ticker
+    if clean.startswith("R"):
+        clean = clean[1:]
+    if clean.endswith("USDT"):
+        clean = clean[:-4]
+
+    return clean[:5] or "RT"
+
+
+def pair_logo_html(ticker, large=False):
+    symbol = pair_logo_symbol(ticker)
+    cls = "ep-pair-logo ep-pair-logo-large" if large else "ep-pair-logo"
+
+    return (
+        f'<span class="{cls}" aria-label="{symbol}">'
+        f'<span>{symbol}</span>'
+        f'</span>'
+    )
 
 
 # ============================================================
@@ -1869,6 +1983,14 @@ if selected_ticker not in options and options:
     st.session_state.selected_asset = selected_ticker
 
 if options:
+    st.markdown(
+        f'<div class="ep-pair-inline">'
+        f'{pair_logo_html(selected_ticker)}'
+        f'<span class="ep-small">ACTIVE REALITY ASSET</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     chosen = st.selectbox(
         "ACTIVE REALITY ASSET",
         options,
@@ -1909,7 +2031,7 @@ if st.session_state.page == "Overview":
             a, b = st.columns([5, 1])
             with a:
                 if st.button(
-                    f"{ticker}   ${price:,.2f}   {change:+.2f}%",
+                    f"◈  {ticker}   ${price:,.2f}   {change:+.2f}%",
                     key=f"asset_{ticker}",
                     width="stretch",
                 ):
