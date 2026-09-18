@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-
 import json
 import math
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import streamlit as st
@@ -20,7 +15,7 @@ from app.database import (
     load_initial_portfolio,
 )
 
-from app.premium_terminal import render_premium_terminal
+from app.ui_terminal import terminal_css
 
 from app.premium_terminal import render_premium_terminal
 
@@ -31,6 +26,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+terminal_css()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PIPELINE_FILE = BASE_DIR / ".eventpulse_pipeline.json"
@@ -603,11 +600,6 @@ render_premium_terminal(
     events=(
         events_df.to_dict("records")
         if not events_df.empty
-        else []
-    ),
-    theses=(
-        theses_df.to_dict("records")
-        if not theses_df.empty
         else []
     ),
     equity=current_equity,

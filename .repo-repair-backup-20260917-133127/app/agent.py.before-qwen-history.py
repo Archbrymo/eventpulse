@@ -10,7 +10,6 @@ from .valuation import get_valuation
 from .market import get_market_data
 from .portfolio import get_portfolio_evidence
 from .qwen_client import client, MODEL
-from app.database import save_qwen_decision
 
 load_dotenv()
 
@@ -232,25 +231,6 @@ def analyze_event(event, tickers, portfolio=None):
         "signals": [signal],
     }
 
-    decision = TradingDecision.model_validate(
+    return TradingDecision.model_validate(
         parsed_decision
     )
-
-    for qwen_signal in decision.signals:
-        save_qwen_decision(
-            ticker=qwen_signal.ticker,
-            decision=qwen_signal.direction,
-            confidence=qwen_signal.confidence,
-            price=package["market"].get("last_price"),
-            reasoning=qwen_signal.reasoning,
-            catalyst=qwen_signal.catalyst,
-            fundamental_thesis=qwen_signal.fundamental_thesis,
-            valuation_thesis=qwen_signal.valuation_thesis,
-            market_thesis=qwen_signal.market_thesis,
-            bull_case=qwen_signal.bull_case,
-            bear_case=qwen_signal.bear_case,
-            invalidation_condition=qwen_signal.invalidation_condition,
-            expected_horizon=qwen_signal.expected_horizon,
-        )
-
-    return decision

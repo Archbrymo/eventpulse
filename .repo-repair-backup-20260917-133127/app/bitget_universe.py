@@ -472,14 +472,3 @@ def universe_summary() -> Dict[str, Any]:
             else "FALLBACK"
         ),
     }
-
-
-def dynamic_universe_count():
-    """Return the current discovered Reality instrument count."""
-    try:
-        return len(get_universe_symbols(force_refresh=True))
-    except Exception:
-        try:
-            return len(get_universe_symbols(force_refresh=False))
-        except Exception:
-            return 0

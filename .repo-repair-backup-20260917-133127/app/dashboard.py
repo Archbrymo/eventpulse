@@ -1,13 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import json
 import math
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import streamlit as st
@@ -18,9 +12,8 @@ from app.database import (
     get_open_theses,
     load_portfolio,
     load_initial_portfolio,
+    DATA_DIR,
 )
-
-from app.premium_terminal import render_premium_terminal
 
 from app.premium_terminal import render_premium_terminal
 
@@ -32,8 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-PIPELINE_FILE = BASE_DIR / ".eventpulse_pipeline.json"
+PIPELINE_FILE = DATA_DIR / ".eventpulse_pipeline.json"
 
 
 def load_pipeline():
