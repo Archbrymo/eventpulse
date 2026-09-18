@@ -121,11 +121,32 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS portfolio (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            cash REAL NOT NULL,
-            equity REAL NOT NULL
+            timestamp TEXT NOT NULL DEFAULT '',
+            cash REAL NOT NULL DEFAULT 0,
+            equity REAL NOT NULL DEFAULT 0,
+            positions TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT
         )
     """)
+
+    portfolio_columns = {
+        row[1]
+        for row in cursor.execute(
+            "PRAGMA table_info(portfolio)"
+        ).fetchall()
+    }
+
+    if "positions" not in portfolio_columns:
+        cursor.execute("""
+            ALTER TABLE portfolio
+            ADD COLUMN positions TEXT NOT NULL DEFAULT '{}'
+        """)
+
+    if "updated_at" not in portfolio_columns:
+        cursor.execute("""
+            ALTER TABLE portfolio
+            ADD COLUMN updated_at TEXT
+        """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS initial_positions (
@@ -648,51 +669,102 @@ def save_portfolio(
     positions = portfolio.get("positions", {})
     positions_json = json.dumps(positions, default=float)
 
+    ensure_portfolio_schema()
+
     conn = get_connection()
     cursor = conn.cursor()
 
+    now = datetime.utcnow().isoformat()
+
     cursor.execute("""
         INSERT INTO portfolio (
+            timestamp,
             cash,
+            equity,
             positions,
             updated_at
         )
-        VALUES (?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
     """, (
+        now,
         cash,
+        float(equity) if equity is not None else cash,
         positions_json,
-        datetime.utcnow().isoformat(),
+        now,
     ))
 
     conn.commit()
     conn.close()
 
+def ensure_portfolio_schema():
+    """Ensure the legacy portfolio table has the current columns."""
+    conn = get_connection()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL DEFAULT '',
+                cash REAL NOT NULL DEFAULT 0,
+                equity REAL NOT NULL DEFAULT 0,
+                positions TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT
+            )
+        """)
+
+        columns = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(portfolio)"
+            ).fetchall()
+        }
+
+        if "positions" not in columns:
+            conn.execute("""
+                ALTER TABLE portfolio
+                ADD COLUMN positions TEXT NOT NULL DEFAULT '{}'
+            """)
+
+        if "updated_at" not in columns:
+            conn.execute("""
+                ALTER TABLE portfolio
+                ADD COLUMN updated_at TEXT
+            """)
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_latest_portfolio():
     import json
 
+    ensure_portfolio_schema()
+
     conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT
-            cash,
-            positions,
-            updated_at
-        FROM portfolio
-        ORDER BY id DESC
-        LIMIT 1
-    """)
-
-    row = cursor.fetchone()
-
-    conn.close()
+    try:
+        row = conn.execute("""
+            SELECT
+                cash,
+                positions,
+                updated_at
+            FROM portfolio
+            ORDER BY id DESC
+            LIMIT 1
+        """).fetchone()
+    finally:
+        conn.close()
 
     if row is None:
         return None
 
+    try:
+        positions = json.loads(row[1] or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        positions = {}
+
     return {
-        "cash": float(row[0]),
-        "positions": json.loads(row[1] or "{}"),
+        "cash": float(row[0] or 0),
+        "positions": positions,
         "updated_at": row[2],
     }
 
