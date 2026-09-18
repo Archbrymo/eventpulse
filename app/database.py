@@ -1,10 +1,14 @@
-
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
 
-DB_PATH = Path(__file__).resolve().parent.parent / "eventpulse.db"
+import os as _os
+_data_dir = _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH") or _os.environ.get("DATA_DIR")
+if _data_dir:
+    DB_PATH = Path(_data_dir) / "eventpulse.db"
+else:
+    DB_PATH = Path(__file__).resolve().parent.parent / "eventpulse.db"
 
 
 

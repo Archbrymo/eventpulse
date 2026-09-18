@@ -3,6 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 from datetime import datetime
 from pathlib import Path
 import json
@@ -12,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from app.database import (
+    initialize_database,
     get_connection,
     get_initial_cash,
     get_initial_positions,
@@ -23,6 +25,8 @@ from app.database import (
     load_portfolio,
     save_portfolio,
 )
+
+initialize_database()
 from app.bitget_universe import (
     rank_candidates,
     universe_summary,
@@ -812,7 +816,11 @@ def live_events(tickers):
 
 
 def load_pipeline():
-    path = Path(".eventpulse_pipeline.json")
+    _data_dir = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH") or os.environ.get("DATA_DIR")
+    if _data_dir:
+        path = Path(_data_dir) / ".eventpulse_pipeline.json"
+    else:
+        path = Path(".eventpulse_pipeline.json")
     if not path.exists():
         return {}
     try:
