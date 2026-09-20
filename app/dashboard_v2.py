@@ -5,6 +5,8 @@ import sqlite3
 
 import pandas as pd
 import streamlit as st
+import json
+import urllib.request
 
 from app.database import (
     get_connection,
@@ -40,6 +42,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+st.markdown(
+    '<script type="module" '
+    'src="https://widgets.tradingview-widget.com/w/index.js">'
+    '</script>',
+    unsafe_allow_html=True,
+)
+
 
 st.markdown(
     """
@@ -759,6 +769,22 @@ div[data-testid="stButton"] > button:hover {
         margin-top: 3px;
         letter-spacing: .08em;
     }
+
+
+.ep-reality-identity {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 28px;
+    margin: 4px 0 8px 0;
+}
+
+.ep-reality-underlying {
+    color: var(--muted);
+    font-size: 9px;
+    font-family: monospace;
+    letter-spacing: .03em;
+}
 
 </style>
 """,
@@ -1953,6 +1979,79 @@ st.markdown(
 )
 
 
+
+# ============================================================
+# BITGET REALITY IDENTITY
+# ============================================================
+
+BITGET_REALITY_STOCK_INFO_URL = (
+    "https://api.bitget.com/api/v3/reality/market/stock-info"
+)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_bitget_reality_identity():
+    try:
+        with urllib.request.urlopen(
+            BITGET_REALITY_STOCK_INFO_URL,
+            timeout=8,
+        ) as response:
+            payload = json.loads(
+                response.read().decode("utf-8")
+            )
+
+        result = {}
+
+        for item in payload.get("data") or []:
+            symbol = str(item.get("symbol") or "").strip()
+            code = str(item.get("code") or "").strip().upper()
+            name = str(item.get("name") or "").strip()
+
+            if symbol and code:
+                result[symbol.upper()] = {
+                    "symbol": symbol,
+                    "code": code,
+                    "name": name,
+                    "tradingview_symbol": (
+                        "NASDAQ:" + code
+                    ),
+                }
+
+        return result
+
+    except Exception:
+        return {}
+
+
+def reality_identity(reality_symbol):
+    symbol = str(reality_symbol or "").strip().upper()
+    return load_bitget_reality_identity().get(symbol, {})
+
+
+def reality_underlying(reality_symbol):
+    return reality_identity(reality_symbol).get("code", "")
+
+
+def reality_company_name(reality_symbol):
+    return reality_identity(reality_symbol).get("name", "")
+
+
+def reality_tradingview_symbol(reality_symbol):
+    return reality_identity(reality_symbol).get(
+        "tradingview_symbol", ""
+    )
+
+
+def reality_identity_label(reality_symbol):
+    identity = reality_identity(reality_symbol)
+    code = identity.get("code", "")
+    name = identity.get("name", "")
+
+    if code and name:
+        return f"{code} · {name}"
+
+    return code or reality_symbol
+
 # ============================================================
 # REALITY TAPE
 # ============================================================
@@ -1990,6 +2089,25 @@ if options:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+    active_identity = reality_identity(selected_ticker)
+    active_code = active_identity.get("code", "")
+    active_name = active_identity.get("name", "")
+    active_tv = active_identity.get("tradingview_symbol", "")
+
+    if active_code and active_tv:
+        st.markdown(
+            f'<div id="ep-bitget-reality-identity" '
+            f'class="ep-reality-identity">'
+            f'<tv-ticker-tag '
+            f'symbol="{active_tv}" '
+            f'theme="dark"></tv-ticker-tag>'
+            f'<span class="ep-reality-underlying">'
+            f'<b>{selected_ticker}</b> · {active_code}'
+            f'{" · " + active_name if active_name else ""}'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
 
     chosen = st.selectbox(
         "ACTIVE REALITY ASSET",
