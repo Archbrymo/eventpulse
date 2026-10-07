@@ -328,7 +328,10 @@ def run_event_driven_cycle(execute_paper=False):
             events = get_market_events()
 
         # Market-movement fallback:
-        # a material Bitget Reality move is itself an event.
+        # Bitget Reality evidence itself can become an actionable event.
+        # This keeps the autonomous cycle alive when the external news
+        # feed returns zero headlines/events.
+
         if not events:
             market_events = []
 
@@ -343,25 +346,41 @@ def run_event_driven_cycle(execute_paper=False):
                     or ""
                 ).upper().strip()
 
-                try:
-                    change = float(
-                        ticker_data.get("change_pct")
-                        or row.get("change_pct")
-                        or 0
+                # Reality research can expose the 24h move under several
+                # fields depending on the upstream response shape.
+                raw_change = (
+                    ticker_data.get("change_pct")
+                    if ticker_data.get("change_pct") is not None
+                    else row.get("change_pct")
+                )
+
+                if raw_change is None:
+                    raw_change = (
+                        ticker_data.get("change")
+                        if ticker_data.get("change") is not None
+                        else row.get("change")
                     )
+
+                try:
+                    change = float(raw_change or 0)
                 except (TypeError, ValueError):
                     change = 0.0
 
+                raw_price = (
+                    ticker_data.get("last")
+                    if ticker_data.get("last") is not None
+                    else row.get("price")
+                )
+
+                if raw_price is None:
+                    raw_price = row.get("last_price")
+
                 try:
-                    price = float(
-                        ticker_data.get("last")
-                        or row.get("price")
-                        or row.get("last_price")
-                        or 0
-                    )
+                    price = float(raw_price or 0)
                 except (TypeError, ValueError):
                     price = 0.0
 
+                # A material Reality move is an event.
                 if ticker and price > 0 and abs(change) >= 1.5:
                     market_events.append(
                         {
@@ -371,8 +390,8 @@ def run_event_driven_cycle(execute_paper=False):
                                 f"{ticker} {change:+.2f}%"
                             ),
                             "reason": (
-                                "Material 24h price movement "
-                                "detected in the Bitget Reality universe."
+                                "Material 24h price movement detected "
+                                "in the Bitget Reality universe."
                             ),
                             "catalyst": (
                                 "positive_market_momentum"
@@ -406,10 +425,14 @@ def run_event_driven_cycle(execute_paper=False):
                     ticker=market_events[0]["ticker"],
                 )
 
-        # Market-movement fallback:
-        # a material Bitget Reality move is itself an event.
+        # Final evidence-only fallback.
+        # If the Reality research rows contain valid price data but no
+        # usable 24h move, the strongest evidence finalist can still be
+        # handed to Qwen. This prevents a temporary news/momentum feed
+        # failure from stopping the autonomous agent.
+
         if not events:
-            market_events = []
+            fallback = None
 
             for row in research or []:
                 ticker_data = row.get("ticker_data") or {}
@@ -423,78 +446,59 @@ def run_event_driven_cycle(execute_paper=False):
                 ).upper().strip()
 
                 try:
-                    change = float(
-                        ticker_data.get("change_pct")
-                        or row.get("change_pct")
-                        or 0
-                    )
-                except (TypeError, ValueError):
-                    change = 0.0
-
-                try:
                     price = float(
                         ticker_data.get("last")
-                        or row.get("price")
-                        or row.get("last_price")
-                        or 0
+                        if ticker_data.get("last") is not None
+                        else (
+                            row.get("price")
+                            if row.get("price") is not None
+                            else row.get("last_price") or 0
+                        )
                     )
                 except (TypeError, ValueError):
                     price = 0.0
 
-                if ticker and price > 0 and abs(change) >= 1.5:
-                    market_events.append(
-                        {
-                            "ticker": ticker,
-                            "headline": (
-                                f"Reality market move: "
-                                f"{ticker} {change:+.2f}%"
-                            ),
-                            "reason": (
-                                "Material 24h price movement "
-                                "detected in the Bitget Reality universe."
-                            ),
-                            "catalyst": (
-                                "positive_market_momentum"
-                                if change > 0
-                                else "negative_market_momentum"
-                            ),
-                            "relevance": min(
-                                1.0,
-                                0.50 + abs(change) / 20.0,
-                            ),
-                            "source": "bitget_reality",
-                            "change_pct": change,
-                            "price": price,
-                        }
-                    )
+                if not ticker or price <= 0:
+                    continue
 
-            market_events.sort(
-                key=lambda event: abs(
-                    float(event.get("change_pct") or 0)
-                ),
-                reverse=True,
-            )
+                fallback = {
+                    "ticker": ticker,
+                    "headline": (
+                        f"Reality evidence finalist: {ticker}"
+                    ),
+                    "reason": (
+                        "No external news event was available. "
+                        "Qwen is evaluating the strongest live "
+                        "Bitget Reality evidence finalist."
+                    ),
+                    "catalyst": "reality_evidence",
+                    "relevance": 0.50,
+                    "source": "bitget_reality_evidence",
+                    "change_pct": 0.0,
+                    "price": price,
+                }
+                break
 
-            if market_events:
-                events = market_events
+            if fallback:
+                events = [fallback]
 
                 mark(
                     "EVENT",
-                    "FALLBACK",
-                    market_events[0]["headline"],
-                    ticker=market_events[0]["ticker"],
+                    "EVIDENCE_FALLBACK",
+                    fallback["headline"],
+                    ticker=fallback["ticker"],
                 )
 
         if not events:
             mark(
                 "EVENT",
                 "WAITING",
-                "No actionable live event returned",
+                "No actionable live event or Reality evidence finalist returned",
             )
             mark(
                 "QWEN",
                 "WAITING",
-                "Council requires an actionable event",
+                "No usable event/evidence input available",
             )
             return result
 
