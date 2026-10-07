@@ -49,39 +49,54 @@ def _underlying(value):
 
 
 def _price_for_signal(signal, research):
+    """Resolve the live Bitget Reality price for a Qwen research ticker."""
     target = str(signal.ticker or "").upper()
 
     for row in research:
+        ticker_data = row.get("ticker_data") or {}
+
         candidates = {
             str(row.get("ticker") or "").upper(),
             str(row.get("execution_symbol") or "").upper(),
             str(row.get("symbol") or "").upper(),
+            str(ticker_data.get("symbol") or "").upper(),
+            str(row.get("underlying") or "").upper(),
+            str(ticker_data.get("underlying") or "").upper(),
         }
 
+        # Direct symbol/ticker match.
         if target in candidates:
             try:
                 return float(
-                    row.get("last_price")
+                    ticker_data.get("last")
+                    or row.get("last_price")
                     or row.get("price")
                     or 0
                 )
             except Exception:
                 return 0.0
 
-        if _underlying(
-            row.get("ticker")
-            or row.get("execution_symbol")
-            or row.get("symbol")
-            or ""
-        ).upper() == target:
+        # Underlying Reality ticker match.
+        underlying_candidates = [
+            row.get("ticker"),
+            row.get("execution_symbol"),
+            row.get("symbol"),
+            row.get("underlying"),
+            ticker_data.get("symbol"),
+            ticker_data.get("underlying"),
+        ]
+
+        for candidate in underlying_candidates:
             try:
-                return float(
-                    row.get("last_price")
-                    or row.get("price")
-                    or 0
-                )
+                if _underlying(candidate).upper() == target:
+                    return float(
+                        ticker_data.get("last")
+                        or row.get("last_price")
+                        or row.get("price")
+                        or 0
+                    )
             except Exception:
-                return 0.0
+                continue
 
     return 0.0
 
@@ -312,6 +327,164 @@ def run_event_driven_cycle(execute_paper=False):
         if not events:
             events = get_market_events()
 
+        # Market-movement fallback:
+        # a material Bitget Reality move is itself an event.
+        if not events:
+            market_events = []
+
+            for row in research or []:
+                ticker_data = row.get("ticker_data") or {}
+
+                ticker = str(
+                    row.get("underlying")
+                    or row.get("ticker")
+                    or row.get("symbol")
+                    or ticker_data.get("underlying")
+                    or ""
+                ).upper().strip()
+
+                try:
+                    change = float(
+                        ticker_data.get("change_pct")
+                        or row.get("change_pct")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    change = 0.0
+
+                try:
+                    price = float(
+                        ticker_data.get("last")
+                        or row.get("price")
+                        or row.get("last_price")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    price = 0.0
+
+                if ticker and price > 0 and abs(change) >= 1.5:
+                    market_events.append(
+                        {
+                            "ticker": ticker,
+                            "headline": (
+                                f"Reality market move: "
+                                f"{ticker} {change:+.2f}%"
+                            ),
+                            "reason": (
+                                "Material 24h price movement "
+                                "detected in the Bitget Reality universe."
+                            ),
+                            "catalyst": (
+                                "positive_market_momentum"
+                                if change > 0
+                                else "negative_market_momentum"
+                            ),
+                            "relevance": min(
+                                1.0,
+                                0.50 + abs(change) / 20.0,
+                            ),
+                            "source": "bitget_reality",
+                            "change_pct": change,
+                            "price": price,
+                        }
+                    )
+
+            market_events.sort(
+                key=lambda event: abs(
+                    float(event.get("change_pct") or 0)
+                ),
+                reverse=True,
+            )
+
+            if market_events:
+                events = market_events
+
+                mark(
+                    "EVENT",
+                    "FALLBACK",
+                    market_events[0]["headline"],
+                    ticker=market_events[0]["ticker"],
+                )
+
+        # Market-movement fallback:
+        # a material Bitget Reality move is itself an event.
+        if not events:
+            market_events = []
+
+            for row in research or []:
+                ticker_data = row.get("ticker_data") or {}
+
+                ticker = str(
+                    row.get("underlying")
+                    or row.get("ticker")
+                    or row.get("symbol")
+                    or ticker_data.get("underlying")
+                    or ""
+                ).upper().strip()
+
+                try:
+                    change = float(
+                        ticker_data.get("change_pct")
+                        or row.get("change_pct")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    change = 0.0
+
+                try:
+                    price = float(
+                        ticker_data.get("last")
+                        or row.get("price")
+                        or row.get("last_price")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    price = 0.0
+
+                if ticker and price > 0 and abs(change) >= 1.5:
+                    market_events.append(
+                        {
+                            "ticker": ticker,
+                            "headline": (
+                                f"Reality market move: "
+                                f"{ticker} {change:+.2f}%"
+                            ),
+                            "reason": (
+                                "Material 24h price movement "
+                                "detected in the Bitget Reality universe."
+                            ),
+                            "catalyst": (
+                                "positive_market_momentum"
+                                if change > 0
+                                else "negative_market_momentum"
+                            ),
+                            "relevance": min(
+                                1.0,
+                                0.50 + abs(change) / 20.0,
+                            ),
+                            "source": "bitget_reality",
+                            "change_pct": change,
+                            "price": price,
+                        }
+                    )
+
+            market_events.sort(
+                key=lambda event: abs(
+                    float(event.get("change_pct") or 0)
+                ),
+                reverse=True,
+            )
+
+            if market_events:
+                events = market_events
+
+                mark(
+                    "EVENT",
+                    "FALLBACK",
+                    market_events[0]["headline"],
+                    ticker=market_events[0]["ticker"],
+                )
+
         if not events:
             mark(
                 "EVENT",
@@ -434,17 +607,33 @@ def run_event_driven_cycle(execute_paper=False):
 
         for signal in signals:
             direction = str(signal.direction).upper()
+
+            # Normalize Pydantic Enum values such as DIRECTION.BUY
+            # into the plain BUY/SELL strings expected by PaperExecutor.
+            if "." in direction:
+                direction = direction.split(".")[-1]
+
             ticker = str(signal.ticker or "").upper()
             confidence = float(signal.confidence or 0.0)
 
             # Qwen HOLD/WAIT never reaches execution.
-            if not approve_signal(signal):
+            paper_confidence_ok = (
+                execute_paper
+                and confidence >= 0.40
+                and direction in ("BUY", "SELL")
+            )
+
+            if not approve_signal(signal) and not paper_confidence_ok:
                 result["blocked"] += 1
 
                 mark(
                     "RISK",
                     "BLOCKED",
-                    "Signal failed deterministic confidence/direction gate",
+                    (
+                        "Signal failed deterministic confidence/direction gate"
+                        if not execute_paper
+                        else "Signal failed paper confidence/direction gate"
+                    ),
                     ticker=ticker,
                     decision=direction,
                     confidence=confidence,
@@ -486,6 +675,7 @@ def run_event_driven_cycle(execute_paper=False):
                 cash=float(portfolio.get("cash", 0.0)),
                 current_quantity=current_quantity,
                 portfolio_value=current_equity,
+                min_confidence=0.40 if execute_paper else 0.60,
             )
 
             quantity = calculate_quantity_from_notional(

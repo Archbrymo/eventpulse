@@ -212,6 +212,13 @@ IMPORTANT RULES
 - Treat Yahoo Finance fundamentals and valuation as supplementary external research evidence.
 - Never treat Yahoo Finance data as live Bitget execution data.
 - If external research appears missing, stale, contradictory, or implausible, discount it rather than guessing.
+
+- Missing fundamentals or valuation data alone is NOT sufficient reason to choose WAIT when live Bitget Reality market evidence provides a clear directional signal.
+- When Reality price, turnover, and market data are valid and the directional move is material, make an actionable BUY or SELL decision when the evidence supports that direction.
+- Use strong positive momentum as evidence supporting BUY and strong negative momentum as evidence supporting SELL, but do not treat momentum alone as certainty.
+- If bid/ask data is internally inconsistent (for example, bid greater than ask), treat the market data as unreliable and choose WAIT.
+- Do not invent missing fundamental or valuation information.
+- Confidence must reflect the quality and consistency of the available evidence; do not automatically reduce confidence to near zero simply because supplementary fundamental or valuation data is unavailable.
 - Do NOT treat the deterministic shortlist score as an investment recommendation.
 - Do NOT assume that a high evidence score means BUY.
 - Consider contradictory evidence explicitly.

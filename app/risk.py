@@ -79,6 +79,7 @@ def calculate_trade_notional(
     cash: float,
     current_quantity: float,
     portfolio_value: float,
+    min_confidence: float = MIN_CONFIDENCE,
 ) -> float:
     """
     Calculate permitted trade value in USDT.
@@ -92,14 +93,20 @@ def calculate_trade_notional(
     if portfolio_value <= 0:
         return 0.0
 
-    if signal.direction in ("HOLD", "WAIT"):
+    # Normalize Pydantic enum values such as DIRECTION.BUY
+    # into the plain strings used by the deterministic risk rules.
+    direction = str(signal.direction).upper()
+    if "." in direction:
+        direction = direction.split(".")[-1]
+
+    if direction in ("HOLD", "WAIT"):
         return 0.0
 
-    if signal.confidence < MIN_CONFIDENCE:
+    if signal.confidence < min_confidence:
         return 0.0
 
     # SELL
-    if signal.direction == "SELL":
+    if direction == "SELL":
 
         if current_quantity <= 0:
             return 0.0
@@ -118,7 +125,7 @@ def calculate_trade_notional(
         return current_position_value * sell_fraction
 
     # BUY
-    if signal.direction == "BUY":
+    if direction == "BUY":
 
         confidence_factor = min(
             1.0,
